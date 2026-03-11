@@ -9,11 +9,11 @@ const steps = [
   { path: '/results', label: 'Report', number: 3 },
 ];
 
-function KnowledgeNavLink({ pathname }: { pathname: string }) {
-  const isActive = pathname.startsWith('/knowledge');
+function NavLink({ href, label, pathname }: { href: string; label: string; pathname: string }) {
+  const isActive = pathname.startsWith(href);
   return (
     <Link
-      href="/knowledge"
+      href={href}
       style={{
         fontFamily: 'var(--font-dm-mono), monospace',
         fontSize: '12px',
@@ -38,7 +38,7 @@ function KnowledgeNavLink({ pathname }: { pathname: string }) {
         }
       }}
     >
-      Knowledge
+      {label}
     </Link>
   );
 }
@@ -81,7 +81,8 @@ export default function Navbar() {
           MKTAGENT
         </Link>
 
-        <KnowledgeNavLink pathname={pathname} />
+        <NavLink href="/knowledge" label="Knowledge" pathname={pathname} />
+        <NavLink href="/dashboard" label="Dashboard" pathname={pathname} />
       </div>
 
       {isAppPage && (

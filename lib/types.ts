@@ -89,3 +89,76 @@ export interface KnowledgeEntry {
 export interface KnowledgeStore {
   entries: KnowledgeEntry[];
 }
+
+// ─── Pause payload ─────────────────────────────────────────────────────────────
+
+export interface PausePayload {
+  status: 'paused';
+  pause_reason: string;
+  paused_at: string; // ISO string
+}
+
+// ─── Strategy types ────────────────────────────────────────────────────────────
+
+export type StrategyStatus = 'active' | 'completed' | 'abandoned';
+
+export interface Strategy {
+  id: string;
+  company_id: string;
+  report_id?: string;
+  name: string;
+  description?: string;
+  status: StrategyStatus;
+  started_at: string;
+  completed_at?: string;
+  results?: string;
+  created_at: string;
+}
+
+// ─── Supabase / Dashboard types ───────────────────────────────────────────────
+
+export type CompanyStatus = 'active' | 'monitoring' | 'completed' | 'paused';
+
+export interface CompanyRecord {
+  id: string;
+  name: string;
+  industry: string;
+  description: string;
+  stage: string;
+  mrr: string;
+  budget: string;
+  team_size: string;
+  primary_goal: string;
+  landing_page_url: string;
+  github_url?: string;
+  competitors: string[];
+  target_audience: string;
+  pain_points: string;
+  differentiation: string;
+  status: CompanyStatus;
+  pause_reason?: string;
+  paused_at?: string;
+  created_at: string;
+  updated_at: string;
+  last_analyzed_at?: string;
+  // joined from reports (latest)
+  latest_report?: ReportRecord;
+  report_count?: number;
+  // joined active strategy
+  active_strategy?: Strategy;
+}
+
+export interface ReportRecord {
+  id: string;
+  company_id: string;
+  executive_summary: string;
+  company_analysis: string;
+  user_research: string;
+  competitor_analysis: string;
+  marketing_strategy: string;
+  budget_allocation: string;
+  input_tokens: number;
+  output_tokens: number;
+  total_cost: number;
+  created_at: string;
+}

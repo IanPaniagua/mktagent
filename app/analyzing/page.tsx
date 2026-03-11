@@ -27,7 +27,9 @@ export default function AnalyzingPage() {
   const [errorMessage, setErrorMessage] = useState('');
   const [results, setResults] = useState<Partial<AnalysisResult>>({});
   const [usageData, setUsageData] = useState<UsageData | null>(null);
+  const [savedToDashboard, setSavedToDashboard] = useState(false);
   const hasStarted = useRef(false);
+  const hasSaved = useRef(false);
 
   useEffect(() => {
     const stored = sessionStorage.getItem('mktagent_company');
@@ -48,6 +50,56 @@ export default function AnalyzingPage() {
     hasStarted.current = true;
     startAnalysis(companyData);
   }, [companyData]);
+
+  // Save to Supabase when analysis completes
+  useEffect(() => {
+    if (!isComplete || hasSaved.current || !companyData) return;
+    hasSaved.current = true;
+    saveToDashboard(companyData, results, usageData);
+  }, [isComplete, companyData, results, usageData]);
+
+  const saveToDashboard = async (
+    company: CompanyData,
+    analysisResults: Partial<AnalysisResult>,
+    usage: UsageData | null
+  ) => {
+    try {
+      // Check for existing company_id (re-analysis flow)
+      const existingId = sessionStorage.getItem('mktagent_company_id');
+      let companyId = existingId;
+
+      if (!companyId) {
+        // Create new company record
+        const res = await fetch('/api/companies', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(company),
+        });
+        if (!res.ok) throw new Error(`Failed to create company: ${res.status}`);
+        const { company: created } = await res.json();
+        companyId = created.id;
+        sessionStorage.setItem('mktagent_company_id', companyId as string);
+      }
+
+      // Save the report
+      const reportRes = await fetch(`/api/companies/${companyId}/reports`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ results: analysisResults, usageData: usage }),
+      });
+      if (!reportRes.ok) throw new Error(`Failed to save report: ${reportRes.status}`);
+
+      const { report: savedReport } = await reportRes.json();
+      if (savedReport?.id) {
+        sessionStorage.setItem('mktagent_report_id', savedReport.id);
+      }
+
+      setSavedToDashboard(true);
+    } catch (err) {
+      // Silently fail — don't break the UI
+      console.error('[MKTAGENT] Failed to save to dashboard:', err);
+    }
+  };
 
   const updateStep = (stepId: number, status: AnalysisStepType['status'], description?: string) => {
     setSteps(prev => prev.map(s =>
@@ -132,11 +184,13 @@ export default function AnalyzingPage() {
 
   const handleRetry = () => {
     hasStarted.current = false;
+    hasSaved.current = false;
     setHasError(false);
     setErrorMessage('');
     setSteps(INITIAL_STEPS);
     setResults({});
     setIsComplete(false);
+    setSavedToDashboard(false);
     if (companyData) {
       hasStarted.current = true;
       startAnalysis(companyData);
@@ -354,35 +408,64 @@ export default function AnalyzingPage() {
                     </span>
                   </motion.div>
                 )}
-                <button
-                  onClick={handleViewResults}
-                  style={{
-                    padding: '14px 36px',
-                    background: 'var(--acid)',
-                    color: 'var(--ink)',
-                    border: 'none',
-                    borderRadius: '8px',
-                    fontFamily: 'var(--font-geist), sans-serif',
-                    fontSize: '16px',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    transition: 'transform 0.2s, box-shadow 0.2s',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '10px',
-                  }}
-                  onMouseEnter={e => {
-                    (e.currentTarget as HTMLElement).style.transform = 'scale(1.03)';
-                    (e.currentTarget as HTMLElement).style.boxShadow = '0 0 40px rgba(200,255,0,0.3)';
-                  }}
-                  onMouseLeave={e => {
-                    (e.currentTarget as HTMLElement).style.transform = 'scale(1)';
-                    (e.currentTarget as HTMLElement).style.boxShadow = 'none';
-                  }}
-                  aria-label="View full report"
-                >
-                  View Full Report →
-                </button>
+
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
+                  <button
+                    onClick={handleViewResults}
+                    style={{
+                      padding: '14px 36px',
+                      background: 'var(--acid)',
+                      color: 'var(--ink)',
+                      border: 'none',
+                      borderRadius: '8px',
+                      fontFamily: 'var(--font-geist), sans-serif',
+                      fontSize: '16px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      transition: 'transform 0.2s, box-shadow 0.2s',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                    }}
+                    onMouseEnter={e => {
+                      (e.currentTarget as HTMLElement).style.transform = 'scale(1.03)';
+                      (e.currentTarget as HTMLElement).style.boxShadow = '0 0 40px rgba(200,255,0,0.3)';
+                    }}
+                    onMouseLeave={e => {
+                      (e.currentTarget as HTMLElement).style.transform = 'scale(1)';
+                      (e.currentTarget as HTMLElement).style.boxShadow = 'none';
+                    }}
+                    aria-label="View full report"
+                  >
+                    View Full Report →
+                  </button>
+
+                  {/* Saved to dashboard indicator */}
+                  <AnimatePresence>
+                    {savedToDashboard && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 4 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0 }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                        }}
+                      >
+                        <span style={{ color: 'var(--acid)', fontSize: '12px' }}>✓</span>
+                        <span style={{
+                          fontFamily: 'var(--font-dm-mono), monospace',
+                          fontSize: '11px',
+                          color: 'var(--chrome-dim)',
+                          letterSpacing: '0.04em',
+                        }}>
+                          Saved to dashboard
+                        </span>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
               </motion.div>
             )}
           </AnimatePresence>
