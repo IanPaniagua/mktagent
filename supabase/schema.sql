@@ -94,3 +94,64 @@ create table if not exists strategies (
 
 create index if not exists idx_strategies_company_id on strategies(company_id);
 create index if not exists idx_strategies_status on strategies(status);
+
+-- ── proposals pipeline ────────────────────────────────────────────────────────
+
+-- Drop old constraint and add new one with more statuses
+alter table companies drop constraint if exists companies_status_check;
+alter table companies add constraint companies_status_check
+  check (status in ('active', 'monitoring', 'completed', 'paused', 'proposal_sent', 'offer_accepted'));
+
+create table if not exists proposals (
+  id                uuid          default gen_random_uuid() primary key,
+  company_id        uuid          references companies(id) on delete cascade,
+  report_id         uuid          references reports(id) on delete set null,
+  strategy_id       uuid          references strategies(id) on delete set null,
+
+  -- AI generated directions
+  direction_budget  text,
+  direction_premium text,
+  user_input        text,
+  chosen_direction  text,         -- 'budget' | 'premium' | 'custom'
+
+  -- AI generated content
+  strategy_plan     text,
+  proposal_content  text,         -- full markdown proposal for the client
+
+  -- Pricing
+  proposed_price    numeric(10,2),
+  actual_price      numeric(10,2),
+  currency          text default 'EUR',
+
+  -- KPIs (array of {name, target, unit})
+  kpis              jsonb default '[]',
+
+  -- Results when closing
+  results           text,
+
+  -- Status pipeline
+  status            text default 'draft'
+                    check (status in ('draft', 'sent', 'accepted', 'rejected', 'closed')),
+
+  -- Dates
+  sent_at           timestamptz,
+  accepted_at       timestamptz,
+  closed_at         timestamptz,
+  created_at        timestamptz   default now(),
+  updated_at        timestamptz   default now()
+);
+
+create index if not exists idx_proposals_company_id on proposals(company_id);
+create index if not exists idx_proposals_status on proposals(status);
+
+create trigger proposals_updated_at
+  before update on proposals
+  for each row execute function update_updated_at();
+
+-- ── KPI actuals + results report (idempotent) ─────────────────────────────────
+alter table proposals add column if not exists kpi_actuals jsonb default '[]';
+alter table proposals add column if not exists results_report text;
+
+-- ── Execution budget estimate (idempotent) ────────────────────────────────────
+alter table proposals add column if not exists execution_budget_min integer;
+alter table proposals add column if not exists execution_budget_max integer;

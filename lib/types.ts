@@ -117,7 +117,7 @@ export interface Strategy {
 
 // ─── Supabase / Dashboard types ───────────────────────────────────────────────
 
-export type CompanyStatus = 'active' | 'monitoring' | 'completed' | 'paused';
+export type CompanyStatus = 'active' | 'monitoring' | 'completed' | 'paused' | 'proposal_sent' | 'offer_accepted';
 
 export interface CompanyRecord {
   id: string;
@@ -146,6 +146,54 @@ export interface CompanyRecord {
   report_count?: number;
   // joined active strategy
   active_strategy?: Strategy;
+  // joined active proposal
+  active_proposal?: Proposal;
+}
+
+// ─── Proposal types ────────────────────────────────────────────────────────────
+
+export type ProposalStatus = 'draft' | 'sent' | 'accepted' | 'rejected' | 'closed';
+
+export interface KPI {
+  name: string;
+  target: string;
+  unit: string;
+}
+
+export interface KPIActual {
+  name: string;
+  target: string;
+  unit: string;
+  actual: string;   // what really happened
+  note?: string;    // optional context
+}
+
+export interface Proposal {
+  id: string;
+  company_id: string;
+  report_id?: string;
+  strategy_id?: string;
+  direction_budget?: string;
+  direction_premium?: string;
+  user_input?: string;
+  chosen_direction?: string;
+  strategy_plan?: string;
+  proposal_content?: string;
+  proposed_price?: number;
+  actual_price?: number;
+  execution_budget_min?: number;
+  execution_budget_max?: number;
+  currency: string;
+  kpis: KPI[];
+  kpi_actuals: KPIActual[];
+  results?: string;
+  results_report?: string;
+  status: ProposalStatus;
+  sent_at?: string;
+  accepted_at?: string;
+  closed_at?: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface ReportRecord {

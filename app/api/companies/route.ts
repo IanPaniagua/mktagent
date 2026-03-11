@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { CompanyData, CompanyRecord, Strategy } from '@/lib/types';
+import { CompanyData, CompanyRecord, Strategy, Proposal } from '@/lib/types';
 
 function getSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -48,11 +48,23 @@ export async function GET() {
 
         const activeStrategy: Strategy | undefined = strategyRows?.[0] ?? undefined;
 
+        // Fetch active proposal (draft, sent, or accepted)
+        const { data: proposalRows } = await supabase
+          .from('proposals')
+          .select('*')
+          .eq('company_id', company.id)
+          .in('status', ['draft', 'sent', 'accepted'])
+          .order('created_at', { ascending: false })
+          .limit(1);
+
+        const activeProposal: Proposal | undefined = proposalRows?.[0] ?? undefined;
+
         return {
           ...company,
           report_count: reports?.length ?? 0,
           latest_report: reports?.[0] ?? undefined,
           active_strategy: activeStrategy,
+          active_proposal: activeProposal,
         };
       })
     );

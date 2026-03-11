@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import Navbar from '@/components/Navbar';
 import ConfirmModal from '@/components/ConfirmModal';
-import { CompanyRecord, CompanyStatus, CompanyData, Strategy, ReportRecord } from '@/lib/types';
+import { CompanyRecord, CompanyStatus, CompanyData, Strategy, ReportRecord, Proposal } from '@/lib/types';
 import { formatRelativeTime, formatDate } from '@/lib/utils';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -24,10 +24,12 @@ function fmtStrategyDate(iso: string) {
 // ─── Status badge ─────────────────────────────────────────────────────────────
 
 const STATUS_CONFIG: Record<CompanyStatus, { bg: string; color: string; label: string }> = {
-  active:     { bg: 'rgba(200,255,0,0.12)',  color: 'var(--acid)',         label: 'Active'     },
-  monitoring: { bg: 'rgba(0,140,255,0.12)',  color: 'var(--signal-blue)',  label: 'Monitoring' },
-  completed:  { bg: 'rgba(120,120,130,0.18)', color: 'var(--chrome-muted)', label: 'Completed'  },
-  paused:     { bg: 'rgba(60,60,70,0.30)',   color: 'var(--chrome-dim)',   label: 'Paused'     },
+  active:          { bg: 'rgba(200,255,0,0.12)',  color: 'var(--acid)',         label: 'Active'           },
+  monitoring:      { bg: 'rgba(0,140,255,0.12)',  color: 'var(--signal-blue)',  label: 'Monitoring'       },
+  completed:       { bg: 'rgba(120,120,130,0.18)', color: 'var(--chrome-muted)', label: 'Completed'       },
+  paused:          { bg: 'rgba(60,60,70,0.30)',   color: 'var(--chrome-dim)',   label: 'Paused'           },
+  proposal_sent:   { bg: 'rgba(0,140,255,0.15)',  color: 'var(--signal-blue)',  label: 'Proposal Sent'    },
+  offer_accepted:  { bg: 'rgba(200,255,0,0.12)',  color: 'var(--acid)',         label: 'Offer Accepted'   },
 };
 
 function StatusBadge({ status }: { status: CompanyStatus }) {
@@ -378,6 +380,85 @@ function ActiveStrategyBar({
   );
 }
 
+// ─── Active proposal bar ────────────────────────────────────────────────────────
+
+function ActiveProposalBar({ proposal }: { proposal: Proposal }) {
+  const currencySymbol = proposal.currency === 'EUR' ? '€' : proposal.currency === 'GBP' ? '£' : '$';
+  const isSent = proposal.status === 'sent';
+  const isAccepted = proposal.status === 'accepted';
+
+  function daysSince(iso: string) {
+    return Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
+  }
+
+  function fmtDate(iso: string) {
+    return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  }
+
+  return (
+    <div style={{
+      marginTop: '12px',
+      padding: '8px 12px',
+      background: isSent ? 'rgba(0,140,255,0.06)' : 'rgba(200,255,0,0.05)',
+      border: `1px solid ${isSent ? 'rgba(0,140,255,0.2)' : 'rgba(200,255,0,0.15)'}`,
+      borderRadius: '8px',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '8px',
+      flexWrap: 'wrap',
+    }}>
+      <span style={{
+        fontFamily: 'var(--font-dm-mono), monospace',
+        fontSize: '11px',
+        color: isSent ? 'var(--signal-blue)' : 'var(--acid)',
+      }}>
+        {isSent ? 'Proposal sent' : 'Offer accepted'}
+        {isSent && proposal.sent_at && ` ${fmtDate(proposal.sent_at)}`}
+        {isAccepted && proposal.accepted_at && ` · ${daysSince(proposal.accepted_at)}d active`}
+      </span>
+      {proposal.proposed_price && (
+        <span style={{
+          fontFamily: 'var(--font-dm-mono), monospace',
+          fontSize: '11px',
+          color: 'var(--chrome-dim)',
+        }}>
+          · {currencySymbol}{Number(proposal.proposed_price).toLocaleString()}/mo
+        </span>
+      )}
+      {isAccepted && proposal.kpis && proposal.kpis.length > 0 && (
+        <span style={{
+          fontFamily: 'var(--font-dm-mono), monospace',
+          fontSize: '10px',
+          padding: '1px 7px',
+          background: 'rgba(200,255,0,0.1)',
+          border: '1px solid rgba(200,255,0,0.2)',
+          borderRadius: '100px',
+          color: 'var(--acid)',
+        }}>
+          {proposal.kpis.length} KPI{proposal.kpis.length !== 1 ? 's' : ''}
+        </span>
+      )}
+      <Link
+        href={`/proposals/${proposal.id}`}
+        style={{
+          marginLeft: 'auto',
+          fontFamily: 'var(--font-dm-mono), monospace',
+          fontSize: '10px',
+          color: isSent ? 'var(--signal-blue)' : 'var(--acid)',
+          textDecoration: 'none',
+          letterSpacing: '0.04em',
+          transition: 'opacity 0.15s',
+          whiteSpace: 'nowrap',
+        }}
+        onMouseEnter={e => ((e.currentTarget as HTMLElement).style.opacity = '0.7')}
+        onMouseLeave={e => ((e.currentTarget as HTMLElement).style.opacity = '1')}
+      >
+        View →
+      </Link>
+    </div>
+  );
+}
+
 // ─── Three-dot menu ────────────────────────────────────────────────────────────
 
 function CompanyMenu({
@@ -405,7 +486,7 @@ function CompanyMenu({
     return () => document.removeEventListener('mousedown', handleClick);
   }, [open]);
 
-  const statuses: CompanyStatus[] = ['active', 'monitoring', 'completed', 'paused'];
+  const statuses: CompanyStatus[] = ['active', 'monitoring', 'completed', 'paused', 'proposal_sent', 'offer_accepted'];
 
   return (
     <div ref={ref} style={{ position: 'relative' }}>
@@ -733,10 +814,12 @@ export default function DashboardPage() {
     const cost = c.latest_report?.total_cost ?? 0;
     return sum + Number(cost);
   }, 0);
+  const activeProposals = companies.filter(c => c.active_proposal && ['sent', 'accepted'].includes(c.active_proposal.status)).length;
 
   const stats = [
     { label: 'Total Companies', value: String(totalCompanies) },
     { label: 'Active', value: String(activeCompanies) },
+    { label: 'Active Proposals', value: String(activeProposals) },
     { label: 'Reports Generated', value: String(totalReports) },
     { label: 'Total Cost', value: `$${totalCost.toFixed(2)}` },
   ];
@@ -784,7 +867,7 @@ export default function DashboardPage() {
             transition={{ delay: 0.08 }}
             style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(4, 1fr)',
+              gridTemplateColumns: 'repeat(5, 1fr)',
               gap: '16px',
               marginBottom: '40px',
             }}
@@ -1061,6 +1144,11 @@ export default function DashboardPage() {
                         setStrategyModal({ strategy: company.active_strategy!, companyId: company.id, mode: 'abandon' });
                       }}
                     />
+                  )}
+
+                  {/* Active proposal info */}
+                  {company.active_proposal && (
+                    <ActiveProposalBar proposal={company.active_proposal} />
                   )}
 
                   {/* Action buttons */}
