@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Knowledge base (user's custom knowledge — do not commit)
+lib/knowledge/knowledge-store.json

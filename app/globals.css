@@ -1,26 +1,249 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --ink: #08080E;
+  --ink-soft: #111118;
+  --ink-muted: #1A1A24;
+  --ink-border: #2A2A38;
+  --acid: #C8FF00;
+  --acid-dim: #8AB500;
+  --chrome: #E2E2EE;
+  --chrome-muted: #8888A0;
+  --chrome-dim: #4A4A60;
+  --signal-blue: #4488FF;
+  --signal-amber: #FFB800;
+  --signal-red: #FF3355;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+* {
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+html,
+body {
+  max-width: 100vw;
+  overflow-x: hidden;
+  background-color: var(--ink);
+  color: var(--chrome);
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--ink);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--ink-border);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--chrome-dim);
+}
+
+/* Grid background pattern */
+.grid-bg {
+  background-image:
+    linear-gradient(var(--ink-border) 1px, transparent 1px),
+    linear-gradient(90deg, var(--ink-border) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+/* Scan line animation */
+@keyframes scanline {
+  0% {
+    transform: translateY(-100vh);
+  }
+  100% {
+    transform: translateY(200vh);
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+.scan-line {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--acid),
+    transparent
+  );
+  opacity: 0.15;
+  animation: scanline 4s linear infinite;
+  pointer-events: none;
+  z-index: 999;
+}
+
+/* Blinking cursor */
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.cursor-blink {
+  animation: blink 1s step-end infinite;
+}
+
+/* Spinner */
+@keyframes spin-anim {
+  to { transform: rotate(360deg); }
+}
+
+.spinner {
+  animation: spin-anim 0.8s linear infinite;
+}
+
+/* Checkmark pop */
+@keyframes pop {
+  0% { transform: scale(0); opacity: 0; }
+  70% { transform: scale(1.2); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.pop-in {
+  animation: pop 0.3s ease-out forwards;
+}
+
+/* Report markdown styles */
+.report-content h1,
+.report-content h2,
+.report-content h3,
+.report-content h4 {
+  color: var(--chrome);
+  margin-top: 1.5rem;
+  margin-bottom: 0.75rem;
+  font-family: 'DM Serif Display', serif;
+}
+
+.report-content h2 {
+  font-size: 1.4rem;
+  border-bottom: 1px solid var(--ink-border);
+  padding-bottom: 0.5rem;
+}
+
+.report-content h3 {
+  font-size: 1.1rem;
+  color: var(--acid);
+}
+
+.report-content p {
+  color: var(--chrome-muted);
+  line-height: 1.7;
+  margin-bottom: 1rem;
+}
+
+.report-content ul,
+.report-content ol {
+  color: var(--chrome-muted);
+  padding-left: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.report-content li {
+  margin-bottom: 0.4rem;
+  line-height: 1.6;
+}
+
+.report-content strong {
+  color: var(--chrome);
+}
+
+.report-content em {
+  color: var(--acid-dim);
+}
+
+.report-content code {
+  background: var(--ink-muted);
+  color: var(--acid);
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  font-family: 'DM Mono', monospace;
+  font-size: 0.85em;
+}
+
+.report-content pre {
+  background: var(--ink-muted);
+  border: 1px solid var(--ink-border);
+  border-radius: 8px;
+  padding: 1rem;
+  overflow-x: auto;
+  margin-bottom: 1rem;
+}
+
+.report-content pre code {
+  background: none;
+  padding: 0;
+}
+
+.report-content blockquote {
+  border-left: 3px solid var(--acid);
+  padding-left: 1rem;
+  color: var(--chrome-muted);
+  margin: 1rem 0;
+  font-style: italic;
+}
+
+.report-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+}
+
+.report-content table th {
+  background: var(--ink-muted);
+  color: var(--chrome);
+  padding: 0.6rem 0.8rem;
+  text-align: left;
+  font-family: 'DM Mono', monospace;
+  font-size: 0.8rem;
+  border: 1px solid var(--ink-border);
+}
+
+.report-content table td {
+  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--ink-border);
+  color: var(--chrome-muted);
+}
+
+.report-content table tr:hover td {
+  background: var(--ink-muted);
+}
+
+/* Progress bar */
+.progress-bar {
+  height: 2px;
+  background: var(--ink-border);
+  border-radius: 1px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: var(--acid);
+  border-radius: 1px;
+  transition: width 0.5s ease;
+}
+
+/* Focus styles */
+input:focus,
+textarea:focus,
+select:focus {
+  outline: none;
+}
+
+/* Selection */
+::selection {
+  background: var(--acid);
+  color: var(--ink);
 }
