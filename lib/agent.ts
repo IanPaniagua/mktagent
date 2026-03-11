@@ -1,18 +1,30 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { CompanyData, ScrapedData } from './types';
+import { CompanyData, ScrapedData, UsageData } from './types';
 import { scrapeUrl, guessCompetitorUrl } from './scraper';
 import { parseDocument, base64ToBuffer } from './parser';
 import { buildSystemPrompt, buildAnalysisPrompt } from './prompts';
+
+// claude-sonnet-4-5 pricing (USD per million tokens)
+const PRICING = { input: 3.0, output: 15.0 };
+
+export function calculateCost(inputTokens: number, outputTokens: number): UsageData {
+  const totalCost =
+    (inputTokens / 1_000_000) * PRICING.input +
+    (outputTokens / 1_000_000) * PRICING.output;
+  return { inputTokens, outputTokens, totalCost };
+}
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 export type StepCallback = (step: number, status: 'active' | 'done', message: string) => void;
 export type ResultCallback = (section: string, content: string) => void;
+export type CostCallback = (usage: UsageData) => void;
 
 export async function runAnalysis(
   companyData: CompanyData,
   onStep: StepCallback,
-  onResult: ResultCallback
+  onResult: ResultCallback,
+  onCost?: CostCallback
 ): Promise<void> {
   // Step 1: Scrape landing page
   onStep(1, 'active', 'Scraping landing page...');
@@ -121,6 +133,16 @@ export async function runAnalysis(
     if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
       fullContent += chunk.delta.text;
     }
+  }
+
+  // Capture token usage from the final message
+  const finalMessage = await stream.finalMessage();
+  if (onCost) {
+    const usage = calculateCost(
+      finalMessage.usage.input_tokens,
+      finalMessage.usage.output_tokens
+    );
+    onCost(usage);
   }
 
   onStep(7, 'done', 'Marketing strategy complete');

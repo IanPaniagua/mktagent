@@ -53,13 +53,20 @@ export interface AnalysisStep {
   subItems?: string[];
 }
 
+export interface UsageData {
+  inputTokens: number;
+  outputTokens: number;
+  totalCost: number; // in USD
+}
+
 export interface SSEEvent {
-  type: 'step' | 'result' | 'complete' | 'error';
+  type: 'step' | 'result' | 'complete' | 'error' | 'cost';
   step?: number;
   status?: 'active' | 'done';
   message?: string;
   section?: string;
   content?: string;
+  usage?: UsageData;
 }
 
 export interface ParsedDocument {

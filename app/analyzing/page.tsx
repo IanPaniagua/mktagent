@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import Navbar from '@/components/Navbar';
 import AnalysisStep from '@/components/AnalysisStep';
-import { CompanyData, AnalysisStep as AnalysisStepType, AnalysisResult } from '@/lib/types';
+import { CompanyData, AnalysisStep as AnalysisStepType, AnalysisResult, UsageData } from '@/lib/types';
 
 const INITIAL_STEPS: AnalysisStepType[] = [
   { id: 1, name: 'Scraping landing page', description: 'Extracting content and messaging...', status: 'pending' },
@@ -26,6 +26,7 @@ export default function AnalyzingPage() {
   const [hasError, setHasError] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [results, setResults] = useState<Partial<AnalysisResult>>({});
+  const [usageData, setUsageData] = useState<UsageData | null>(null);
   const hasStarted = useRef(false);
 
   useEffect(() => {
@@ -95,12 +96,15 @@ export default function AnalyzingPage() {
               message?: string;
               section?: string;
               content?: string;
+              usage?: UsageData;
             };
 
             if (event.type === 'step' && event.step !== undefined) {
               updateStep(event.step, event.status || 'active', event.message);
             } else if (event.type === 'result' && event.section) {
               setResults(prev => ({ ...prev, [event.section!]: event.content || '' }));
+            } else if (event.type === 'cost' && event.usage) {
+              setUsageData(event.usage);
             } else if (event.type === 'complete') {
               setIsComplete(true);
             } else if (event.type === 'error') {
@@ -120,6 +124,9 @@ export default function AnalyzingPage() {
 
   const handleViewResults = () => {
     sessionStorage.setItem('mktagent_results', JSON.stringify(results));
+    if (usageData) {
+      sessionStorage.setItem('mktagent_usage', JSON.stringify(usageData));
+    }
     router.push('/results');
   };
 
@@ -311,10 +318,42 @@ export default function AnalyzingPage() {
                   fontFamily: 'var(--font-geist), sans-serif',
                   fontSize: '14px',
                   color: 'var(--chrome-muted)',
-                  marginBottom: '24px',
+                  marginBottom: '20px',
                 }}>
                   Your full marketing intelligence report is ready.
                 </p>
+
+                {/* Cost breakdown */}
+                {usageData && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.3 }}
+                    style={{
+                      display: 'inline-flex',
+                      gap: '20px',
+                      padding: '10px 20px',
+                      background: 'var(--ink-muted)',
+                      border: '1px solid var(--ink-border)',
+                      borderRadius: '8px',
+                      marginBottom: '24px',
+                      flexWrap: 'wrap',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <span style={{ fontFamily: 'var(--font-dm-mono), monospace', fontSize: '11px', color: 'var(--chrome-dim)', letterSpacing: '0.05em' }}>
+                      IN <span style={{ color: 'var(--chrome-muted)' }}>{usageData.inputTokens.toLocaleString()}</span> tokens
+                    </span>
+                    <span style={{ color: 'var(--ink-border)' }}>·</span>
+                    <span style={{ fontFamily: 'var(--font-dm-mono), monospace', fontSize: '11px', color: 'var(--chrome-dim)', letterSpacing: '0.05em' }}>
+                      OUT <span style={{ color: 'var(--chrome-muted)' }}>{usageData.outputTokens.toLocaleString()}</span> tokens
+                    </span>
+                    <span style={{ color: 'var(--ink-border)' }}>·</span>
+                    <span style={{ fontFamily: 'var(--font-dm-mono), monospace', fontSize: '11px', letterSpacing: '0.05em' }}>
+                      COST <span style={{ color: 'var(--acid)', fontWeight: 700 }}>${usageData.totalCost.toFixed(4)}</span>
+                    </span>
+                  </motion.div>
+                )}
                 <button
                   onClick={handleViewResults}
                   style={{

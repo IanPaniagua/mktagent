@@ -23,6 +23,9 @@ export async function POST(request: NextRequest) {
           },
           (section, content) => {
             send({ type: 'result', section, content });
+          },
+          (usage) => {
+            send({ type: 'cost', usage });
           }
         );
 
