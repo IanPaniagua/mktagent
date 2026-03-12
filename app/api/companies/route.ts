@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { CompanyData, CompanyRecord, Strategy, Proposal } from '@/lib/types';
+import { CompanyData, CompanyRecord, Strategy, Proposal, PMBriefRecord } from '@/lib/types';
 
 function getSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -59,12 +59,23 @@ export async function GET() {
 
         const activeProposal: Proposal | undefined = proposalRows?.[0] ?? undefined;
 
+        // Fetch latest PM brief
+        const { data: pmBriefRows } = await supabase
+          .from('pm_briefs')
+          .select('id, status, created_at, input_tokens, output_tokens, total_cost')
+          .eq('company_id', company.id)
+          .order('created_at', { ascending: false })
+          .limit(1);
+
+        const latestPMBrief: PMBriefRecord | undefined = pmBriefRows?.[0] as PMBriefRecord | undefined;
+
         return {
           ...company,
           report_count: reports?.length ?? 0,
           latest_report: reports?.[0] ?? undefined,
           active_strategy: activeStrategy,
           active_proposal: activeProposal,
+          latest_pm_brief: latestPMBrief,
         };
       })
     );

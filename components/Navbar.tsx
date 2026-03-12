@@ -10,7 +10,9 @@ const steps = [
 ];
 
 function NavLink({ href, label, pathname }: { href: string; label: string; pathname: string }) {
-  const isActive = pathname.startsWith(href);
+  const isActive = href === '/knowledge'
+    ? pathname === '/knowledge'
+    : pathname.startsWith(href);
   return (
     <Link
       href={href}
@@ -81,7 +83,8 @@ export default function Navbar() {
           MKTAGENT
         </Link>
 
-        <NavLink href="/knowledge" label="Knowledge" pathname={pathname} />
+        <NavLink href="/knowledge/pm" label="PM KB" pathname={pathname} />
+        <NavLink href="/knowledge" label="Mkt KB" pathname={pathname} />
         <NavLink href="/dashboard" label="Dashboard" pathname={pathname} />
       </div>
 

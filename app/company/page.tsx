@@ -97,7 +97,7 @@ export default function CompanyPage() {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!validate()) return;
     setIsSubmitting(true);
 
@@ -108,8 +108,23 @@ export default function CompanyPage() {
         : [],
     };
 
-    sessionStorage.setItem('mktagent_company', JSON.stringify(dataToSave));
-    router.push('/analyzing');
+    // Create the company in Supabase first, then go to PM analysis
+    try {
+      const res = await fetch('/api/companies', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(dataToSave),
+      });
+      if (!res.ok) throw new Error('Failed to create company');
+      const { company } = await res.json();
+      sessionStorage.setItem('mktagent_company', JSON.stringify(dataToSave));
+      sessionStorage.setItem('mktagent_company_id', company.id);
+      router.push(`/pm/${company.id}`);
+    } catch {
+      // Fallback: store and go to PM without a company ID (will still work)
+      sessionStorage.setItem('mktagent_company', JSON.stringify(dataToSave));
+      setIsSubmitting(false);
+    }
   };
 
   // Checklist for summary card

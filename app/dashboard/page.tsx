@@ -1151,6 +1151,83 @@ export default function DashboardPage() {
                     <ActiveProposalBar proposal={company.active_proposal} />
                   )}
 
+                  {/* PM Phase bar */}
+                  <div style={{
+                    marginTop: '12px',
+                    padding: '8px 12px',
+                    background: company.latest_pm_brief
+                      ? 'rgba(0,140,255,0.05)'
+                      : 'rgba(120,120,130,0.06)',
+                    border: `1px solid ${company.latest_pm_brief ? 'rgba(0,140,255,0.2)' : 'var(--ink-border)'}`,
+                    borderRadius: '8px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                  }}>
+                    <span style={{
+                      fontFamily: 'var(--font-dm-mono), monospace',
+                      fontSize: '10px',
+                      color: 'var(--chrome-dim)',
+                      letterSpacing: '0.06em',
+                      flexShrink: 0,
+                    }}>
+                      PM
+                    </span>
+                    {company.latest_pm_brief ? (
+                      <>
+                        <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--signal-blue)', flexShrink: 0 }} />
+                        <span style={{ fontFamily: 'var(--font-dm-mono), monospace', fontSize: '11px', color: 'var(--signal-blue)', flex: 1 }}>
+                          Brief ready
+                        </span>
+                        <Link
+                          href={`/pm/brief/${company.latest_pm_brief.id}`}
+                          style={{
+                            fontFamily: 'var(--font-dm-mono), monospace',
+                            fontSize: '10px',
+                            color: 'var(--signal-blue)',
+                            textDecoration: 'none',
+                            letterSpacing: '0.04em',
+                            opacity: 0.8,
+                          }}
+                          onMouseEnter={e => ((e.currentTarget as HTMLElement).style.opacity = '1')}
+                          onMouseLeave={e => ((e.currentTarget as HTMLElement).style.opacity = '0.8')}
+                        >
+                          View Brief →
+                        </Link>
+                      </>
+                    ) : (
+                      <>
+                        <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--chrome-dim)', flexShrink: 0 }} />
+                        <span style={{ fontFamily: 'var(--font-dm-mono), monospace', fontSize: '11px', color: 'var(--chrome-dim)', flex: 1 }}>
+                          No PM brief yet
+                        </span>
+                        <Link
+                          href={`/pm/${company.id}`}
+                          style={{
+                            fontFamily: 'var(--font-dm-mono), monospace',
+                            fontSize: '10px',
+                            color: 'var(--chrome-muted)',
+                            textDecoration: 'none',
+                            letterSpacing: '0.04em',
+                            border: '1px solid var(--ink-border)',
+                            padding: '2px 8px',
+                            borderRadius: '4px',
+                          }}
+                          onMouseEnter={e => {
+                            (e.currentTarget as HTMLElement).style.borderColor = 'var(--signal-blue)';
+                            (e.currentTarget as HTMLElement).style.color = 'var(--signal-blue)';
+                          }}
+                          onMouseLeave={e => {
+                            (e.currentTarget as HTMLElement).style.borderColor = 'var(--ink-border)';
+                            (e.currentTarget as HTMLElement).style.color = 'var(--chrome-muted)';
+                          }}
+                        >
+                          Run PM →
+                        </Link>
+                      </>
+                    )}
+                  </div>
+
                   {/* Action buttons */}
                   <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '16px' }}>
                     {company.latest_report ? (

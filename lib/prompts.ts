@@ -39,6 +39,7 @@ export function buildAnalysisPrompt(params: {
   githubContent: string;
   documentsContent: string;
   competitorContents: Array<{ name: string; content: string }>;
+  pmBriefContext?: string;
 }): string {
   const competitorSection = params.competitorContents.length > 0
     ? params.competitorContents.map(c => `### ${c.name}\n${c.content || 'No content scraped.'}`).join('\n\n')
@@ -71,7 +72,10 @@ ${params.documentsContent || 'No internal documents provided.'}
 ## Competitor Intelligence
 ${competitorSection}
 
----
+${params.pmBriefContext ? `## Product Intelligence Brief (from PMCORE — Phase 1 Analysis)
+${params.pmBriefContext}
+
+` : ''}---
 
 # YOUR ANALYSIS TASK
 

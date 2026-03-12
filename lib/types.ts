@@ -148,6 +148,8 @@ export interface CompanyRecord {
   active_strategy?: Strategy;
   // joined active proposal
   active_proposal?: Proposal;
+  // joined latest PM brief
+  latest_pm_brief?: PMBriefRecord;
 }
 
 // ─── Proposal types ────────────────────────────────────────────────────────────
@@ -209,4 +211,72 @@ export interface ReportRecord {
   output_tokens: number;
   total_cost: number;
   created_at: string;
+}
+
+// ─── PM Agent types ───────────────────────────────────────────────────────────
+
+export type PMBriefStatus = 'complete';
+
+export interface PMBriefRecord {
+  id: string;
+  company_id: string;
+  product_clarity?: string;
+  icp?: string;
+  jobs_to_be_done?: string;
+  pmf_assessment?: string;
+  positioning?: string;
+  value_prop_gaps?: string;
+  pre_marketing_needs?: string;
+  quick_marketing_wins?: string;
+  recommended_pm_actions?: string;
+  status: PMBriefStatus;
+  input_tokens: number;
+  output_tokens: number;
+  total_cost: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PMInputData {
+  companyId: string;
+  additionalContext?: string;
+  documents?: UploadedDocument[];
+}
+
+export interface PMKnowledgeEntry {
+  id: string;
+  title: string;
+  category: 'philosophy' | 'framework' | 'playbook' | 'rule' | 'case-study';
+  content: string;
+  enabled: boolean;
+  isDefault: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PMKnowledgeStore {
+  entries: PMKnowledgeEntry[];
+}
+
+export type PMProposalStatus = 'draft' | 'sent' | 'accepted' | 'rejected';
+
+export interface PMProposal {
+  id: string;
+  pm_brief_id: string;
+  company_id: string;
+  direction_fix_first?: string;
+  direction_quick_start?: string;
+  chosen_direction?: string;
+  user_input?: string;
+  pm_plan?: string;
+  proposed_price?: number;
+  execution_budget_min?: number;
+  execution_budget_max?: number;
+  currency: string;
+  proposal_content?: string;
+  status: PMProposalStatus;
+  sent_at?: string;
+  accepted_at?: string;
+  created_at: string;
+  updated_at: string;
 }

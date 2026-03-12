@@ -1,132 +1,65 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Suspense } from 'react';
 import Navbar from '@/components/Navbar';
 import AnalysisStep from '@/components/AnalysisStep';
-import { CompanyData, AnalysisStep as AnalysisStepType, AnalysisResult, UsageData } from '@/lib/types';
+import { AnalysisStep as AnalysisStepType, PMInputData, UsageData } from '@/lib/types';
 
 const INITIAL_STEPS: AnalysisStepType[] = [
-  { id: 1, name: 'Scraping landing page', description: 'Extracting content and messaging...', status: 'pending' },
-  { id: 2, name: 'Reading GitHub repository', description: 'Analyzing codebase and README...', status: 'pending' },
-  { id: 3, name: 'Processing uploaded documents', description: 'Parsing PDFs and documents...', status: 'pending' },
-  { id: 4, name: 'Running competitor research', description: 'Scraping competitor websites...', status: 'pending' },
-  { id: 5, name: 'Conducting user research', description: 'Analyzing market positioning...', status: 'pending' },
-  { id: 6, name: 'Analyzing company stage', description: 'Diagnosing current position...', status: 'pending' },
-  { id: 7, name: 'Building marketing strategy', description: 'Generating strategic recommendations...', status: 'pending' },
-  { id: 8, name: 'Generating final report', description: 'Compiling intelligence brief...', status: 'pending' },
+  { id: 1, name: 'Scraping landing page',            description: 'Extracting product content and messaging...', status: 'pending' },
+  { id: 2, name: 'Reading GitHub repository',        description: 'Analyzing codebase maturity and README...', status: 'pending' },
+  { id: 3, name: 'Processing product documents',     description: 'Parsing PRDs, research, and roadmap...', status: 'pending' },
+  { id: 4, name: 'Analyzing product positioning',   description: 'ICP, competitive alternatives, differentiation...', status: 'pending' },
+  { id: 5, name: 'Diagnosing PMF signals',           description: 'Retention signals, growth stage, readiness...', status: 'pending' },
+  { id: 6, name: 'Building Product Brief',           description: 'PMCORE generating intelligence report...', status: 'pending' },
+  { id: 7, name: 'Structuring brief sections',       description: 'Parsing and organizing output...', status: 'pending' },
 ];
 
-export default function AnalyzingPage() {
+function PMAnalyzingContent() {
   const router = useRouter();
-  const [companyData, setCompanyData] = useState<CompanyData | null>(null);
+  const searchParams = useSearchParams();
+  const companyId = searchParams.get('company');
+
   const [steps, setSteps] = useState<AnalysisStepType[]>(INITIAL_STEPS);
   const [isComplete, setIsComplete] = useState(false);
   const [hasError, setHasError] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
-  const [results, setResults] = useState<Partial<AnalysisResult>>({});
   const [usageData, setUsageData] = useState<UsageData | null>(null);
-  const [savedToDashboard, setSavedToDashboard] = useState(false);
+  const [briefId, setBriefId] = useState<string | null>(null);
   const hasStarted = useRef(false);
-  const hasSaved = useRef(false);
 
   useEffect(() => {
-    const stored = sessionStorage.getItem('mktagent_company');
+    if (!companyId || hasStarted.current) return;
+    hasStarted.current = true;
+
+    const stored = sessionStorage.getItem('mktagent_pm_input');
     if (!stored) {
-      router.push('/company');
+      router.push(`/pm/${companyId}`);
       return;
     }
-    try {
-      const data = JSON.parse(stored) as CompanyData;
-      setCompanyData(data);
-    } catch {
-      router.push('/company');
-    }
-  }, [router]);
 
-  useEffect(() => {
-    if (!companyData || hasStarted.current) return;
-    hasStarted.current = true;
-    startAnalysis(companyData);
-  }, [companyData]);
-
-  // Save to Supabase when analysis completes
-  useEffect(() => {
-    if (!isComplete || hasSaved.current || !companyData) return;
-    hasSaved.current = true;
-    saveToDashboard(companyData, results, usageData);
-  }, [isComplete, companyData, results, usageData]);
-
-  const saveToDashboard = async (
-    company: CompanyData,
-    analysisResults: Partial<AnalysisResult>,
-    usage: UsageData | null
-  ) => {
-    try {
-      // Check for existing company_id (re-analysis flow)
-      const existingId = sessionStorage.getItem('mktagent_company_id');
-      let companyId = existingId;
-
-      if (!companyId) {
-        // Create new company record
-        const res = await fetch('/api/companies', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(company),
-        });
-        if (!res.ok) throw new Error(`Failed to create company: ${res.status}`);
-        const { company: created } = await res.json();
-        companyId = created.id;
-        sessionStorage.setItem('mktagent_company_id', companyId as string);
-      }
-
-      // Save the report
-      const reportRes = await fetch(`/api/companies/${companyId}/reports`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ results: analysisResults, usageData: usage }),
-      });
-      if (!reportRes.ok) throw new Error(`Failed to save report: ${reportRes.status}`);
-
-      const { report: savedReport } = await reportRes.json();
-      if (savedReport?.id) {
-        sessionStorage.setItem('mktagent_report_id', savedReport.id);
-      }
-
-      setSavedToDashboard(true);
-    } catch (err) {
-      // Silently fail — don't break the UI
-      console.error('[MKTAGENT] Failed to save to dashboard:', err);
-    }
-  };
+    const pmInput = JSON.parse(stored) as PMInputData;
+    startAnalysis(companyId, pmInput);
+  }, [companyId, router]);
 
   const updateStep = (stepId: number, status: AnalysisStepType['status'], description?: string) => {
     setSteps(prev => prev.map(s =>
-      s.id === stepId
-        ? { ...s, status, description: description || s.description }
-        : s
+      s.id === stepId ? { ...s, status, description: description || s.description } : s
     ));
   };
 
-  const startAnalysis = async (data: CompanyData) => {
+  const startAnalysis = async (id: string, pmInput: PMInputData) => {
     try {
-      const existingCompanyId = sessionStorage.getItem('mktagent_company_id');
-      const pmBriefId = sessionStorage.getItem('mktagent_pm_brief_id');
-
-      const response = await fetch('/api/analyze', {
+      const response = await fetch(`/api/companies/${id}/pm-analysis`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...data,
-          companyId: existingCompanyId || undefined,
-          pmBriefId: pmBriefId || undefined,
-        }),
+        body: JSON.stringify(pmInput),
       });
 
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
       const reader = response.body?.getReader();
       if (!reader) throw new Error('No response stream');
@@ -148,59 +81,47 @@ export default function AnalyzingPage() {
           if (!jsonStr) continue;
 
           try {
-            const event = JSON.parse(jsonStr) as {
-              type: string;
-              step?: number;
-              status?: 'active' | 'done';
-              message?: string;
-              section?: string;
-              content?: string;
-              usage?: UsageData;
-            };
+            const event = JSON.parse(jsonStr);
 
             if (event.type === 'step' && event.step !== undefined) {
               updateStep(event.step, event.status || 'active', event.message);
-            } else if (event.type === 'result' && event.section) {
-              setResults(prev => ({ ...prev, [event.section!]: event.content || '' }));
             } else if (event.type === 'cost' && event.usage) {
               setUsageData(event.usage);
-            } else if (event.type === 'complete') {
+            } else if (event.type === 'complete' && event.briefId) {
+              setBriefId(event.briefId);
+              sessionStorage.removeItem('mktagent_pm_input');
               setIsComplete(true);
             } else if (event.type === 'error') {
               setHasError(true);
-              setErrorMessage(event.message || 'Analysis failed');
+              setErrorMessage(event.message || 'PM analysis failed');
             }
           } catch {
-            // Ignore parse errors for individual events
+            // ignore parse errors
           }
         }
       }
     } catch (err) {
       setHasError(true);
-      setErrorMessage(err instanceof Error ? err.message : 'Analysis failed');
+      setErrorMessage(err instanceof Error ? err.message : 'PM analysis failed');
     }
-  };
-
-  const handleViewResults = () => {
-    sessionStorage.setItem('mktagent_results', JSON.stringify(results));
-    if (usageData) {
-      sessionStorage.setItem('mktagent_usage', JSON.stringify(usageData));
-    }
-    router.push('/results');
   };
 
   const handleRetry = () => {
     hasStarted.current = false;
-    hasSaved.current = false;
     setHasError(false);
     setErrorMessage('');
     setSteps(INITIAL_STEPS);
-    setResults({});
     setIsComplete(false);
-    setSavedToDashboard(false);
-    if (companyData) {
-      hasStarted.current = true;
-      startAnalysis(companyData);
+    setBriefId(null);
+
+    if (companyId) {
+      const stored = sessionStorage.getItem('mktagent_pm_input');
+      if (stored) {
+        hasStarted.current = true;
+        startAnalysis(companyId, JSON.parse(stored) as PMInputData);
+      } else {
+        router.push(`/pm/${companyId}`);
+      }
     }
   };
 
@@ -229,40 +150,38 @@ export default function AnalyzingPage() {
             animate={{ opacity: 1, y: 0 }}
             style={{ marginBottom: '48px', textAlign: 'center' }}
           >
-            {companyData && (
-              <div style={{ marginBottom: '8px' }}>
-                <span style={{
-                  fontFamily: 'var(--font-dm-mono), monospace',
-                  fontSize: '12px',
-                  color: 'var(--acid)',
-                  letterSpacing: '0.1em',
-                }}>
-                  ANALYZING
-                </span>
-                {' '}
-                <span style={{
-                  fontFamily: 'var(--font-dm-serif), serif',
-                  fontSize: '28px',
-                  color: 'var(--chrome)',
-                }}>
-                  {companyData.name}
-                </span>
-                <span className="cursor-blink" style={{
-                  color: 'var(--acid)',
-                  fontFamily: 'var(--font-dm-mono), monospace',
-                  marginLeft: '4px',
-                }}>
-                  _
-                </span>
-              </div>
-            )}
+            <div style={{ marginBottom: '8px' }}>
+              <span style={{
+                fontFamily: 'var(--font-dm-mono), monospace',
+                fontSize: '11px',
+                color: 'var(--signal-blue)',
+                letterSpacing: '0.1em',
+              }}>
+                PHASE 1 · PMCORE
+              </span>
+              {' '}
+              <span style={{
+                fontFamily: 'var(--font-dm-serif), serif',
+                fontSize: '28px',
+                color: 'var(--chrome)',
+              }}>
+                Product Intelligence
+              </span>
+              <span className="cursor-blink" style={{
+                color: 'var(--signal-blue)',
+                fontFamily: 'var(--font-dm-mono), monospace',
+                marginLeft: '4px',
+              }}>
+                _
+              </span>
+            </div>
             <p style={{
               fontFamily: 'var(--font-dm-mono), monospace',
               fontSize: '12px',
               color: 'var(--chrome-dim)',
               letterSpacing: '0.05em',
             }}>
-              {hasError ? 'ANALYSIS FAILED' : isComplete ? 'ANALYSIS COMPLETE' : 'ANALYSIS IN PROGRESS'}
+              {hasError ? 'ANALYSIS FAILED' : isComplete ? 'BRIEF COMPLETE' : 'ANALYSIS IN PROGRESS'}
             </p>
           </motion.div>
 
@@ -270,7 +189,10 @@ export default function AnalyzingPage() {
           <div className="progress-bar" style={{ marginBottom: '40px' }}>
             <div
               className="progress-fill"
-              style={{ width: `${progress}%` }}
+              style={{
+                width: `${progress}%`,
+                background: 'var(--signal-blue)',
+              }}
             />
           </div>
 
@@ -284,9 +206,7 @@ export default function AnalyzingPage() {
             {steps.map((step, i) => (
               <div
                 key={step.id}
-                style={{
-                  borderBottom: i < steps.length - 1 ? '1px solid var(--ink-border)' : 'none',
-                }}
+                style={{ borderBottom: i < steps.length - 1 ? '1px solid var(--ink-border)' : 'none' }}
               >
                 <AnalysisStep step={step} />
               </div>
@@ -331,16 +251,15 @@ export default function AnalyzingPage() {
                     cursor: 'pointer',
                     transition: 'border-color 0.2s',
                   }}
-                  onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--acid)')}
+                  onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--signal-blue)')}
                   onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--ink-border)')}
-                  aria-label="Retry analysis"
                 >
                   Retry Analysis
                 </button>
               </motion.div>
             )}
 
-            {isComplete && !hasError && (
+            {isComplete && !hasError && briefId && (
               <motion.div
                 key="complete"
                 initial={{ opacity: 0, y: 10 }}
@@ -356,13 +275,13 @@ export default function AnalyzingPage() {
                     width: '64px',
                     height: '64px',
                     borderRadius: '50%',
-                    background: 'var(--acid)',
+                    background: 'var(--signal-blue)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     margin: '0 auto 20px',
                     fontSize: '28px',
-                    color: 'var(--ink)',
+                    color: '#fff',
                   }}
                 >
                   ✓
@@ -373,7 +292,7 @@ export default function AnalyzingPage() {
                   color: 'var(--chrome)',
                   marginBottom: '8px',
                 }}>
-                  Analysis Complete
+                  Product Brief Ready
                 </p>
                 <p style={{
                   fontFamily: 'var(--font-geist), sans-serif',
@@ -381,10 +300,9 @@ export default function AnalyzingPage() {
                   color: 'var(--chrome-muted)',
                   marginBottom: '20px',
                 }}>
-                  Your full marketing intelligence report is ready.
+                  PMCORE has completed the product intelligence analysis.
                 </p>
 
-                {/* Cost breakdown */}
                 {usageData && (
                   <motion.div
                     initial={{ opacity: 0, y: 6 }}
@@ -411,18 +329,18 @@ export default function AnalyzingPage() {
                     </span>
                     <span style={{ color: 'var(--ink-border)' }}>·</span>
                     <span style={{ fontFamily: 'var(--font-dm-mono), monospace', fontSize: '11px', letterSpacing: '0.05em' }}>
-                      COST <span style={{ color: 'var(--acid)', fontWeight: 700 }}>${usageData.totalCost.toFixed(4)}</span>
+                      COST <span style={{ color: 'var(--signal-blue)', fontWeight: 700 }}>${usageData.totalCost.toFixed(4)}</span>
                     </span>
                   </motion.div>
                 )}
 
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
                   <button
-                    onClick={handleViewResults}
+                    onClick={() => router.push(`/pm/brief/${briefId}`)}
                     style={{
                       padding: '14px 36px',
-                      background: 'var(--acid)',
-                      color: 'var(--ink)',
+                      background: 'var(--signal-blue)',
+                      color: '#fff',
                       border: 'none',
                       borderRadius: '8px',
                       fontFamily: 'var(--font-geist), sans-serif',
@@ -436,48 +354,20 @@ export default function AnalyzingPage() {
                     }}
                     onMouseEnter={e => {
                       (e.currentTarget as HTMLElement).style.transform = 'scale(1.03)';
-                      (e.currentTarget as HTMLElement).style.boxShadow = '0 0 40px rgba(200,255,0,0.3)';
+                      (e.currentTarget as HTMLElement).style.boxShadow = '0 0 40px rgba(0,140,255,0.3)';
                     }}
                     onMouseLeave={e => {
                       (e.currentTarget as HTMLElement).style.transform = 'scale(1)';
                       (e.currentTarget as HTMLElement).style.boxShadow = 'none';
                     }}
-                    aria-label="View full report"
                   >
-                    View Full Report →
+                    View Product Brief →
                   </button>
-
-                  {/* Saved to dashboard indicator */}
-                  <AnimatePresence>
-                    {savedToDashboard && (
-                      <motion.div
-                        initial={{ opacity: 0, y: 4 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0 }}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                        }}
-                      >
-                        <span style={{ color: 'var(--acid)', fontSize: '12px' }}>✓</span>
-                        <span style={{
-                          fontFamily: 'var(--font-dm-mono), monospace',
-                          fontSize: '11px',
-                          color: 'var(--chrome-dim)',
-                          letterSpacing: '0.04em',
-                        }}>
-                          Saved to dashboard
-                        </span>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
                 </div>
               </motion.div>
             )}
           </AnimatePresence>
 
-          {/* Progress count */}
           {!isComplete && !hasError && (
             <motion.p
               initial={{ opacity: 0 }}
@@ -497,5 +387,13 @@ export default function AnalyzingPage() {
         </div>
       </main>
     </>
+  );
+}
+
+export default function PMAnalyzingPage() {
+  return (
+    <Suspense fallback={null}>
+      <PMAnalyzingContent />
+    </Suspense>
   );
 }

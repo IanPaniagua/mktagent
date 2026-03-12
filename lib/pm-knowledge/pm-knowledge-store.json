@@ -1,0 +1,74 @@
+{
+  "entries": [
+    {
+      "id": "pm-core-philosophy",
+      "title": "PM Core Philosophy",
+      "category": "philosophy",
+      "content": "# PM Core Philosophy\n\n## Product First, Marketing Second\nMarketing can only amplify what already works. Before any marketing strategy, the product must have:\n1. **A clearly defined problem it solves** — not a feature list, a problem statement\n2. **A specific person it's for** — not \"SMBs\" but \"Operations Managers at 10-50 person SaaS companies who lose 5h/week on manual reporting\"\n3. **Evidence of demand** — at least 5-10 people paying, using, or desperately wanting it\n4. **A retention signal** — people come back after first use\n\n## Anti-patterns to always flag\n- Spending on marketing before validating retention (churn makes acquisition irrelevant)\n- Building for everyone (no ICP = no messaging = no growth)\n- Confusing activity (features shipped, signups) with outcomes (retained paying customers)\n- Skipping discovery to go straight to execution\n- Assuming the product is ready for growth when it's still in validation\n\n## The PM Agent's job\nDiagnose product readiness honestly. Identify what needs to exist or improve before marketing can work. Flag pre-marketing work as clearly as marketing work.",
+      "enabled": true,
+      "isDefault": true,
+      "createdAt": "2024-01-01T00:00:00Z",
+      "updatedAt": "2024-01-01T00:00:00Z"
+    },
+    {
+      "id": "icp-framework",
+      "title": "ICP Framework",
+      "category": "framework",
+      "content": "# ICP (Ideal Customer Profile) Framework\n\n## The ICP is NOT a persona. It's a targeting system.\n\nA strong ICP has 5 dimensions:\n\n### 1. Firmographics (B2B) or Demographics (B2C)\n- Company size (employees, revenue)\n- Industry / vertical\n- Geography\n- Tech stack / tools used\n- Funding stage\n\n### 2. Psychographics\n- How they think about the problem\n- What they've already tried\n- Their tolerance for change\n- What they read, who they follow\n\n### 3. Trigger Events\nWhat happened right before they started looking for a solution?\n- Examples: hired a new team member, missed a quarterly target, got a new manager, started a new role\n- Trigger events are gold — they're when timing is right\n\n### 4. Watering Holes\nWhere do they actually spend time?\n- Communities (Slack groups, Discord, Reddit)\n- Publications they trust\n- Events they attend\n- Influencers they follow\n\n### 5. Buying Signals\nHow do you know they're ready to buy NOW?\n- Job postings (hiring for X role signals a need)\n- Funding announcements\n- Specific behavior on your site or product\n\n## ICP Quality Test\nYou should be able to name 10 specific companies or people who fit your ICP right now. If you can't, the ICP is too broad.",
+      "enabled": true,
+      "isDefault": true,
+      "createdAt": "2024-01-01T00:00:00Z",
+      "updatedAt": "2024-01-01T00:00:00Z"
+    },
+    {
+      "id": "jobs-to-be-done",
+      "title": "Jobs-to-be-Done Framework",
+      "category": "framework",
+      "content": "# Jobs-to-be-Done (JTBD) Framework\n\n## Core idea\nPeople don't buy products — they hire them to do a job. Understanding the job explains switching behavior, messaging resonance, and retention.\n\n## Three types of jobs\n\n### Functional Job\nThe practical task they're trying to accomplish.\n- Example: \"I need to reduce the time my team spends on weekly status reports\"\n- This is what the product does\n\n### Emotional Job\nHow they want to feel (or not feel) after the job is done.\n- Example: \"I want to feel in control and not embarrassed in front of leadership\"\n- This drives the messaging that converts\n\n### Social Job\nHow they want to be perceived by others.\n- Example: \"I want my team to see me as an efficient, modern manager\"\n- This drives word-of-mouth and sharing\n\n## The Switching Trigger\nPeople switch products when the pain of staying > the fear of changing. Always identify:\n- **Push**: What makes them leave the current solution? (frustration, failure, cost)\n- **Pull**: What makes your solution attractive? (promise, social proof, ease)\n- **Anxiety**: What's stopping them from switching? (migration effort, risk, trust)\n- **Habits**: What keeps them stuck? (familiarity, integrations, team inertia)\n\n## JTBD Analysis Output\nFor each main job:\n1. The job statement: \"When [situation], I want to [motivation], so I can [outcome]\"\n2. The current solution being replaced\n3. The key anxiety preventing the switch\n4. The messaging that addresses the emotional job",
+      "enabled": true,
+      "isDefault": true,
+      "createdAt": "2024-01-01T00:00:00Z",
+      "updatedAt": "2024-01-01T00:00:00Z"
+    },
+    {
+      "id": "pmf-signals",
+      "title": "PMF Signals & Diagnosis",
+      "category": "playbook",
+      "content": "# Product-Market Fit Signals & Diagnosis\n\n## The Sean Ellis Test (gold standard)\nAsk users: \"How would you feel if you could no longer use [product]?\"\n- >40% say \"very disappointed\" = PMF signal\n- <40% = keep iterating on product, don't scale marketing\n\n## Quantitative PMF signals\n- **D30 retention > 20%** for SaaS (varies by category)\n- **NPS > 40**\n- **Referral rate**: >20% of new customers come from referrals without incentive\n- **Churn < 5% monthly** for SMB SaaS, < 2% for enterprise\n- **Expansion revenue**: existing customers upgrading / buying more\n- **Usage frequency**: core action performed multiple times per week\n\n## Qualitative PMF signals\n- Customers tell you they'd be \"devastated\" to lose the product\n- Customers refer others without being asked\n- Customers complain when you don't ship features fast enough\n- Customers find creative workarounds to keep using it\n- Press/community buzz happens without marketing spend\n\n## Pre-PMF warning signs (don't scale marketing here)\n- Customers churn after trial even when onboarding is good\n- No organic referrals despite happy users\n- High activation, low retention\n- Revenue plateauing despite marketing spend increasing\n- Consistently negative ROI on paid channels\n\n## Stage Diagnosis Framework\n- **Idea stage**: No product, testing assumptions\n- **MVP stage**: Product exists, finding first 10 customers\n- **Pre-PMF**: Customers exist, retention not proven, iterating\n- **Early PMF**: Retention signals showing, ready for repeatable acquisition\n- **Growth stage**: Proven retention + acquisition channel, scaling",
+      "enabled": true,
+      "isDefault": true,
+      "createdAt": "2024-01-01T00:00:00Z",
+      "updatedAt": "2024-01-01T00:00:00Z"
+    },
+    {
+      "id": "positioning-framework",
+      "title": "Product Positioning Framework",
+      "category": "framework",
+      "content": "# Product Positioning Framework\n\n## April Dunford's Positioning Model\nPositioning = Context that makes your value obvious to the right people.\n\n## 5 Components of Strong Positioning\n\n### 1. Competitive Alternatives\nWhat does your customer do if your product doesn't exist?\n- NOT just direct competitors — includes spreadsheets, manual processes, doing nothing\n- This anchors ALL pricing and messaging decisions\n\n### 2. Differentiated Capabilities\nWhat do you do that alternatives can't or don't?\n- Must be real (validated by customers, not invented in a boardroom)\n- Ideally, 1-3 things only (more = none)\n\n### 3. Value (Not Features)\nWhat does the capability ENABLE for the customer?\n- Features: \"Real-time sync across devices\"\n- Value: \"Your whole team sees the same data without Slack threads\"\n- Always translate features to business outcomes\n\n### 4. Target Customer\nWho experiences this value most intensely?\n- Best customers = highest value from differentiated capabilities\n- Usually 20% of potential market but 80% of retention + referrals\n\n### 5. Market Category\nThe frame of reference you want in the customer's mind\n- Choose a category customers already understand\n- OR create a new one (high risk, high reward)\n- Wrong category = constant uphill selling battle\n\n## Common Positioning Mistakes\n- Positioning against direct competitors instead of the status quo\n- Leading with technology instead of business outcome\n- Trying to serve multiple ICPs with the same positioning\n- Changing positioning too frequently (kills brand memory)",
+      "enabled": true,
+      "isDefault": true,
+      "createdAt": "2024-01-01T00:00:00Z",
+      "updatedAt": "2024-01-01T00:00:00Z"
+    },
+    {
+      "id": "stage-playbooks-pm",
+      "title": "Pre-Marketing Readiness Playbooks",
+      "category": "playbook",
+      "content": "# Pre-Marketing Readiness Playbooks\n\n## What must exist before marketing can work?\n\n### Minimum viable for any marketing spend\n1. **A landing page that converts** — clear headline, single CTA, at least one social proof element\n2. **An onboarding flow that activates** — new user reaches \"aha moment\" within first session\n3. **A retention baseline** — >20% of activated users return in week 2\n4. **A trackable funnel** — you know where people drop off\n\n### Minimum for paid acquisition\n1. All of the above PLUS:\n2. **CAC/LTV math that works** — LTV > 3x CAC\n3. **Conversion rate > 2%** on landing page (paid traffic is more skeptical)\n4. **Email capture + nurture** — paid traffic that doesn't convert still has value if captured\n\n### Pre-marketing common fixes\n- **Website doesn't explain the product in 5 seconds**: Rewrite the above-the-fold before anything else\n- **No social proof**: Even 3 customer quotes dramatically improve conversion\n- **Broken onboarding**: Fix before spending a cent on acquisition\n- **No analytics**: You're flying blind — install tracking first\n- **No clear CTA**: One page, one action. Remove all competing CTAs.\n\n## The Pre-Marketing Checklist\n- [ ] Can a stranger understand what you do in 5 seconds on your homepage?\n- [ ] Is there at least one form of social proof visible without scrolling?\n- [ ] Does the signup/trial flow work without errors on mobile?\n- [ ] Do you have email automation for trial/signup (at minimum a welcome email)?\n- [ ] Do you track where signups come from?\n- [ ] Is there a defined \"aha moment\" and do you know what % of users reach it?",
+      "enabled": true,
+      "isDefault": true,
+      "createdAt": "2024-01-01T00:00:00Z",
+      "updatedAt": "2024-01-01T00:00:00Z"
+    },
+    {
+      "id": "proven-case-studies",
+      "title": "Proven Growth Case Studies",
+      "category": "case-study",
+      "content": "# Proven Growth Case Studies\n\nReference these when recommending strategies — ground advice in what actually worked.\n\n## Notion — Product-Led Growth\n- **What worked**: Free tier with generous limits → viral sharing of pages/docs → organic word of mouth\n- **Key insight**: Product itself was the marketing. Every shared Notion page was an acquisition touchpoint.\n- **Lesson**: If your product creates shareable artifacts, build virality into the artifact, not the marketing campaign.\n\n## Slack — Viral Loop via Teams\n- **What worked**: Invited coworkers → whole team adopted → impossible to leave\n- **Key insight**: Network effects within organizations made churn nearly impossible once >3 users were in\n- **Lesson**: If your product is more valuable with more users, your ICP is the \"connector\" not the individual user.\n\n## Stripe — Developer-First Distribution\n- **What worked**: Made developers the ICP, built the best docs in fintech, let developers champion internally\n- **Key insight**: B2B sales through bottom-up developer adoption bypassed traditional enterprise procurement\n- **Lesson**: If developers touch your product, invest in docs and DX before sales. The developer is your champion.\n\n## Figma — Community & Education\n- **What worked**: Free for students + educators → they became designers → brought Figma to their companies\n- **Key insight**: Seed the future buyers before they have budget\n- **Lesson**: If there's a student/junior version of your ICP, make the product free for them.\n\n## Intercom — Content Moat\n- **What worked**: Published definitive content about customer communication before the category existed\n- **Key insight**: Owned the intellectual space → owned the search traffic → owned the category\n- **Lesson**: If you're creating a new category, publish the category definition before anyone else does.\n\n## Linear — Taste as a Moat\n- **What worked**: Built a visually and functionally superior product in a crowded market (project management)\n- **Key insight**: Developers and designers — an audience that values craft — championed it internally\n- **Lesson**: In commoditized categories, extreme product quality + speed can be the differentiation.\n\n## Applying Case Studies\nWhen recommending strategies, explicitly connect: \"This is similar to how [company] grew because [shared characteristic]. The key is [specific mechanic]\"",
+      "enabled": true,
+      "isDefault": true,
+      "createdAt": "2024-01-01T00:00:00Z",
+      "updatedAt": "2024-01-01T00:00:00Z"
+    }
+  ]
+}

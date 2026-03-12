@@ -24,7 +24,8 @@ export async function runAnalysis(
   companyData: CompanyData,
   onStep: StepCallback,
   onResult: ResultCallback,
-  onCost?: CostCallback
+  onCost?: CostCallback,
+  pmBriefContext?: string
 ): Promise<void> {
   // Step 1: Scrape landing page
   onStep(1, 'active', 'Scraping landing page...');
@@ -116,6 +117,7 @@ export async function runAnalysis(
     githubContent: githubContent.slice(0, 4000),
     documentsContent: documentsContent.slice(0, 6000),
     competitorContents,
+    pmBriefContext,
   });
 
   // Step 8: Generate final report

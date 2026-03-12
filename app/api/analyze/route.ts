@@ -1,6 +1,8 @@
 import { NextRequest } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 import { CompanyData } from '@/lib/types';
 import { runAnalysis } from '@/lib/agent';
+import { buildPMBriefSummary } from '@/lib/pm-prompts';
 
 export const maxDuration = 300;
 
@@ -14,7 +16,55 @@ export async function POST(request: NextRequest) {
       }
 
       try {
-        const companyData = await request.json() as CompanyData;
+        const body = await request.json() as CompanyData & { companyId?: string; pmBriefId?: string };
+
+        // Fetch PM brief context if available
+        let pmBriefContext: string | undefined;
+        const companyId = body.companyId;
+        const pmBriefId = body.pmBriefId;
+
+        if ((companyId || pmBriefId) && process.env.NEXT_PUBLIC_SUPABASE_URL) {
+          try {
+            const supabase = createClient(
+              process.env.NEXT_PUBLIC_SUPABASE_URL!,
+              process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+            );
+
+            let query = supabase.from('pm_briefs').select('*');
+            if (pmBriefId) {
+              query = query.eq('id', pmBriefId);
+            } else if (companyId) {
+              query = query.eq('company_id', companyId).order('created_at', { ascending: false }).limit(1);
+            }
+
+            const { data: briefs } = await query;
+            const brief = Array.isArray(briefs) ? briefs[0] : briefs;
+
+            if (brief) {
+              pmBriefContext = buildPMBriefSummary(brief);
+            }
+          } catch (e) {
+            console.warn('[Analyze] Failed to fetch PM brief:', e);
+          }
+        }
+
+        const companyData: CompanyData = {
+          name: body.name,
+          industry: body.industry,
+          description: body.description,
+          mrr: body.mrr,
+          budget: body.budget,
+          teamSize: body.teamSize,
+          stage: body.stage,
+          primaryGoal: body.primaryGoal,
+          landingPageUrl: body.landingPageUrl,
+          githubUrl: body.githubUrl,
+          documents: body.documents,
+          competitors: body.competitors,
+          targetAudience: body.targetAudience,
+          painPoints: body.painPoints,
+          differentiation: body.differentiation,
+        };
 
         await runAnalysis(
           companyData,
@@ -26,7 +76,8 @@ export async function POST(request: NextRequest) {
           },
           (usage) => {
             send({ type: 'cost', usage });
-          }
+          },
+          pmBriefContext
         );
 
         send({ type: 'complete' });
