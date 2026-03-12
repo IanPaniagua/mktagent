@@ -56,7 +56,7 @@ export async function POST(
 
         const response = await anthropic.messages.create({
           model: 'claude-opus-4-5',
-          max_tokens: 3000,
+          max_tokens: 5000,
           stream: true,
           messages: [{ role: 'user', content: prompt }],
         });

@@ -53,6 +53,7 @@ export default function PMBriefPage({ params }: { params: Promise<{ id: string }
   const [directionsDone, setDirectionsDone] = useState(false);
   const [chosenDirection, setChosenDirection] = useState<'Direction A' | 'Direction B' | null>(null);
   const [creatingProposal, setCreatingProposal] = useState(false);
+  const [existingProposalId, setExistingProposalId] = useState<string | null>(null);
 
   useEffect(() => {
     fetch(`/api/pm-briefs/${id}`)
@@ -62,6 +63,14 @@ export default function PMBriefPage({ params }: { params: Promise<{ id: string }
         setLoading(false);
       })
       .catch(() => setLoading(false));
+
+    // Check for existing proposal
+    fetch(`/api/pm-briefs/${id}/proposals`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.proposal?.id) setExistingProposalId(data.proposal.id);
+      })
+      .catch(() => {/* no proposal */});
   }, [id]);
 
   function generateDirections() {
@@ -449,6 +458,29 @@ export default function PMBriefPage({ params }: { params: Promise<{ id: string }
                   PMCORE will propose two strategic directions based on the brief. Pick the one that fits the client.
                 </p>
               </div>
+              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+              {existingProposalId && (
+                <button
+                  onClick={() => router.push(`/pm/proposals/${existingProposalId}`)}
+                  style={{
+                    padding: '10px 20px',
+                    background: 'rgba(200,255,0,0.08)',
+                    color: 'var(--acid)',
+                    border: '1px solid rgba(200,255,0,0.25)',
+                    borderRadius: '8px',
+                    fontFamily: 'var(--font-geist), sans-serif',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                  }}
+                >
+                  Resume Proposal →
+                </button>
+              )}
               {!directionsDone && (
                 <button
                   onClick={generateDirections}
@@ -481,6 +513,7 @@ export default function PMBriefPage({ params }: { params: Promise<{ id: string }
                   ) : 'Generate Directions →'}
                 </button>
               )}
+              </div>
             </div>
 
             {/* Direction cards */}

@@ -68,6 +68,7 @@ export default function PMProposalPage({ params }: { params: Promise<{ id: strin
 
   // Status update
   const [statusUpdating, setStatusUpdating] = useState(false);
+  const [priceSaved, setPriceSaved] = useState(false);
 
   useEffect(() => {
     fetch(`/api/pm-proposals/${proposalId}`)
@@ -98,46 +99,54 @@ export default function PMProposalPage({ params }: { params: Promise<{ id: strin
       .catch(() => setLoading(false));
   }, [proposalId]);
 
+  async function readSSE(
+    res: Response,
+    onChunk: (text: string) => void,
+    onComplete: (msg: Record<string, unknown>) => void,
+    onError: () => void,
+  ) {
+    const reader = res.body!.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const parts = buffer.split('\n\n');
+      buffer = parts.pop() ?? '';
+      for (const part of parts) {
+        const line = part.replace(/^data: /, '').trim();
+        if (!line) continue;
+        try {
+          const msg = JSON.parse(line);
+          if (msg.type === 'chunk') onChunk(msg.content ?? '');
+          if (msg.type === 'complete') onComplete(msg);
+          if (msg.type === 'error') onError();
+        } catch { /* skip */ }
+      }
+    }
+  }
+
   function generatePlan() {
     setPlanText('');
     setPlanStreaming(true);
     setPlanDone(false);
 
-    const es = new EventSource(`/api/pm-proposals/${proposalId}/generate-plan`, { withCredentials: false });
-    // EventSource only supports GET — use fetch with SSE instead
-    es.close();
-
+    let accumulated = '';
     fetch(`/api/pm-proposals/${proposalId}/generate-plan`, { method: 'POST' })
-      .then(async res => {
-        const reader = res.body!.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
-          const parts = buffer.split('\n\n');
-          buffer = parts.pop() ?? '';
-          for (const part of parts) {
-            const line = part.replace(/^data: /, '').trim();
-            if (!line) continue;
-            try {
-              const msg = JSON.parse(line);
-              if (msg.type === 'chunk') setPlanText(prev => prev + msg.content);
-              if (msg.type === 'complete') {
-                setPlanDone(true);
-                setPlanStreaming(false);
-                if (msg.suggestedPrice) { setSuggestedPrice(msg.suggestedPrice); setEditedPrice(msg.suggestedPrice); }
-                if (msg.execMin) setExecMin(msg.execMin);
-                if (msg.execMax) setExecMax(msg.execMax);
-              }
-              if (msg.type === 'error') setPlanStreaming(false);
-            } catch { /* skip */ }
-          }
-        }
-        setPlanStreaming(false);
-      })
+      .then(res => readSSE(
+        res,
+        chunk => { accumulated += chunk; },
+        msg => {
+          setPlanText(accumulated);
+          setPlanDone(true);
+          setPlanStreaming(false);
+          if (msg.suggestedPrice) { setSuggestedPrice(msg.suggestedPrice as number); setEditedPrice(msg.suggestedPrice as number); }
+          if (msg.execMin) setExecMin(msg.execMin as number);
+          if (msg.execMax) setExecMax(msg.execMax as number);
+        },
+        () => setPlanStreaming(false),
+      ))
       .catch(() => setPlanStreaming(false));
   }
 
@@ -148,6 +157,7 @@ export default function PMProposalPage({ params }: { params: Promise<{ id: strin
     setProposalDone(false);
     setPhase('proposal');
 
+    let accumulated = '';
     fetch(`/api/pm-proposals/${proposalId}/generate-proposal`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -155,30 +165,24 @@ export default function PMProposalPage({ params }: { params: Promise<{ id: strin
         proposedPrice: editedPrice || suggestedPrice || 0,
         currency: proposal.currency ?? 'EUR',
       }),
-    }).then(async res => {
-      const reader = res.body!.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
+    })
+      .then(res => readSSE(
+        res,
+        chunk => { accumulated += chunk; },
+        () => { setProposalText(accumulated); setProposalDone(true); setProposalStreaming(false); },
+        () => setProposalStreaming(false),
+      ))
+      .catch(() => setProposalStreaming(false));
+  }
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const parts = buffer.split('\n\n');
-        buffer = parts.pop() ?? '';
-        for (const part of parts) {
-          const line = part.replace(/^data: /, '').trim();
-          if (!line) continue;
-          try {
-            const msg = JSON.parse(line);
-            if (msg.type === 'chunk') setProposalText(prev => prev + msg.content);
-            if (msg.type === 'complete') { setProposalDone(true); setProposalStreaming(false); }
-            if (msg.type === 'error') setProposalStreaming(false);
-          } catch { /* skip */ }
-        }
-      }
-      setProposalStreaming(false);
-    }).catch(() => setProposalStreaming(false));
+  async function savePrice() {
+    await fetch(`/api/pm-proposals/${proposalId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ proposed_price: editedPrice }),
+    });
+    setPriceSaved(true);
+    setTimeout(() => setPriceSaved(false), 2000);
   }
 
   async function updateStatus(status: PMProposalStatus) {
@@ -418,26 +422,49 @@ export default function PMProposalPage({ params }: { params: Promise<{ id: strin
                   </motion.div>
                 )}
 
-                {(planStreaming || planText) && (
+                {planStreaming && (
                   <div style={{
                     background: 'var(--ink-soft)',
                     border: '1px solid var(--ink-border)',
                     borderRadius: '12px',
-                    padding: '32px',
-                    minHeight: '400px',
+                    padding: '60px 40px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '20px',
                   }}>
-                    {planStreaming && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px', paddingBottom: '16px', borderBottom: '1px solid var(--ink-border)' }}>
-                        <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--signal-blue)', animation: 'pulse 1s infinite' }} />
-                        <span style={{ fontFamily: 'var(--font-dm-mono), monospace', fontSize: '11px', color: 'var(--signal-blue)', letterSpacing: '0.08em' }}>
-                          PMCORE GENERATING ACTION PLAN...
-                        </span>
+                    <div style={{
+                      width: '40px', height: '40px', borderRadius: '50%',
+                      border: '3px solid rgba(0,140,255,0.15)',
+                      borderTopColor: 'var(--signal-blue)',
+                      animation: 'spin-anim 0.8s linear infinite',
+                    }} />
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ fontFamily: 'var(--font-dm-mono), monospace', fontSize: '12px', color: 'var(--signal-blue)', letterSpacing: '0.08em', marginBottom: '6px' }}>
+                        PMCORE IS WORKING...
                       </div>
-                    )}
+                      <div style={{ fontFamily: 'var(--font-geist), sans-serif', fontSize: '13px', color: 'var(--chrome-dim)' }}>
+                        Building your PM Action Plan. This takes about a minute.
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {!planStreaming && planText && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    style={{
+                      background: 'var(--ink-soft)',
+                      border: '1px solid var(--ink-border)',
+                      borderRadius: '12px',
+                      padding: '32px',
+                    }}
+                  >
                     <div className="markdown-content" style={{ fontFamily: 'var(--font-geist), sans-serif', fontSize: '14px', color: 'var(--chrome-muted)', lineHeight: 1.8 }}>
                       <ReactMarkdown remarkPlugins={[remarkGfm]}>{planText}</ReactMarkdown>
                     </div>
-                  </div>
+                  </motion.div>
                 )}
 
                 {/* Pricing + CTA */}
@@ -471,7 +498,7 @@ export default function PMProposalPage({ params }: { params: Promise<{ id: strin
                             <input
                               type="number"
                               value={editedPrice || ''}
-                              onChange={e => setEditedPrice(Number(e.target.value))}
+                              onChange={e => { setEditedPrice(Number(e.target.value)); setPriceSaved(false); }}
                               style={{
                                 background: 'var(--ink-muted)',
                                 border: '1px solid var(--ink-border)',
@@ -484,6 +511,24 @@ export default function PMProposalPage({ params }: { params: Promise<{ id: strin
                                 outline: 'none',
                               }}
                             />
+                            <button
+                              onClick={savePrice}
+                              style={{
+                                padding: '7px 14px',
+                                background: priceSaved ? 'rgba(200,255,0,0.1)' : 'rgba(0,140,255,0.1)',
+                                border: `1px solid ${priceSaved ? 'rgba(200,255,0,0.3)' : 'rgba(0,140,255,0.3)'}`,
+                                borderRadius: '6px',
+                                fontFamily: 'var(--font-dm-mono), monospace',
+                                fontSize: '11px',
+                                color: priceSaved ? 'var(--acid)' : 'var(--signal-blue)',
+                                cursor: 'pointer',
+                                letterSpacing: '0.05em',
+                                transition: 'all 0.2s',
+                                whiteSpace: 'nowrap',
+                              }}
+                            >
+                              {priceSaved ? '✓ SAVED' : 'SAVE'}
+                            </button>
                           </div>
                         </div>
                         {execMin && execMax && (
@@ -525,47 +570,70 @@ export default function PMProposalPage({ params }: { params: Promise<{ id: strin
             {/* ── PROPOSAL phase ── */}
             {phase === 'proposal' && (
               <motion.div key="proposal" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                <div style={{
-                  background: 'var(--ink-soft)',
-                  border: '1px solid var(--ink-border)',
-                  borderRadius: '12px',
-                  padding: '32px',
-                  minHeight: '400px',
-                }}>
-                  {proposalStreaming && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px', paddingBottom: '16px', borderBottom: '1px solid var(--ink-border)' }}>
-                      <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--signal-blue)', animation: 'pulse 1s infinite' }} />
-                      <span style={{ fontFamily: 'var(--font-dm-mono), monospace', fontSize: '11px', color: 'var(--signal-blue)', letterSpacing: '0.08em' }}>
+                {proposalStreaming && (
+                  <div style={{
+                    background: 'var(--ink-soft)',
+                    border: '1px solid var(--ink-border)',
+                    borderRadius: '12px',
+                    padding: '60px 40px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '20px',
+                  }}>
+                    <div style={{
+                      width: '40px', height: '40px', borderRadius: '50%',
+                      border: '3px solid rgba(0,140,255,0.15)',
+                      borderTopColor: 'var(--signal-blue)',
+                      animation: 'spin-anim 0.8s linear infinite',
+                    }} />
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ fontFamily: 'var(--font-dm-mono), monospace', fontSize: '12px', color: 'var(--signal-blue)', letterSpacing: '0.08em', marginBottom: '6px' }}>
                         WRITING CLIENT PROPOSAL...
-                      </span>
+                      </div>
+                      <div style={{ fontFamily: 'var(--font-geist), sans-serif', fontSize: '13px', color: 'var(--chrome-dim)' }}>
+                        Translating the action plan into a client-facing document.
+                      </div>
                     </div>
-                  )}
+                  </div>
+                )}
 
-                  {!proposalText && !proposalStreaming && (
-                    <div style={{ textAlign: 'center', padding: '60px 20px' }}>
-                      <p style={{ fontFamily: 'var(--font-dm-mono), monospace', fontSize: '13px', color: 'var(--chrome-dim)', marginBottom: '20px' }}>
-                        Go back to the PM Action Plan tab and click &quot;Generate Client Proposal&quot;.
-                      </p>
-                      <button
-                        onClick={() => setPhase('plan')}
-                        style={{
-                          padding: '10px 20px', background: 'transparent',
-                          border: '1px solid var(--ink-border)', borderRadius: '8px',
-                          fontFamily: 'var(--font-dm-mono), monospace', fontSize: '12px',
-                          color: 'var(--chrome-muted)', cursor: 'pointer',
-                        }}
-                      >
-                        ← Back to Plan
-                      </button>
-                    </div>
-                  )}
+                {!proposalStreaming && !proposalText && (
+                  <div style={{
+                    background: 'var(--ink-soft)', border: '1px solid var(--ink-border)',
+                    borderRadius: '12px', padding: '60px 20px', textAlign: 'center',
+                  }}>
+                    <p style={{ fontFamily: 'var(--font-dm-mono), monospace', fontSize: '13px', color: 'var(--chrome-dim)', marginBottom: '20px' }}>
+                      Go back to the PM Action Plan tab and click &quot;Generate Client Proposal&quot;.
+                    </p>
+                    <button
+                      onClick={() => setPhase('plan')}
+                      style={{
+                        padding: '10px 20px', background: 'transparent',
+                        border: '1px solid var(--ink-border)', borderRadius: '8px',
+                        fontFamily: 'var(--font-dm-mono), monospace', fontSize: '12px',
+                        color: 'var(--chrome-muted)', cursor: 'pointer',
+                      }}
+                    >
+                      ← Back to Plan
+                    </button>
+                  </div>
+                )}
 
-                  {proposalText && (
+                {!proposalStreaming && proposalText && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    style={{
+                      background: 'var(--ink-soft)', border: '1px solid var(--ink-border)',
+                      borderRadius: '12px', padding: '40px',
+                    }}
+                  >
                     <div className="markdown-content" style={{ fontFamily: 'var(--font-geist), sans-serif', fontSize: '15px', color: 'var(--chrome-muted)', lineHeight: 1.9 }}>
                       <ReactMarkdown remarkPlugins={[remarkGfm]}>{proposalText}</ReactMarkdown>
                     </div>
-                  )}
-                </div>
+                  </motion.div>
+                )}
 
                 {/* Proposal actions */}
                 {proposalDone && (
