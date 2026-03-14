@@ -220,6 +220,7 @@ export type PMBriefStatus = 'complete';
 export interface PMBriefRecord {
   id: string;
   company_id: string;
+  // Core sections (original)
   product_clarity?: string;
   icp?: string;
   jobs_to_be_done?: string;
@@ -229,7 +230,43 @@ export interface PMBriefRecord {
   pre_marketing_needs?: string;
   quick_marketing_wins?: string;
   recommended_pm_actions?: string;
+  // New sections
+  vision?: string;
+  okrs?: string;
+  aarrr_assessment?: string;
+  early_validation?: string;
+  client_deliverables?: string;
+  // Shared scraping cache (reused by HoG + MKT agents)
+  scraped_landing_page?: string;
+  scraped_github?: string;
   status: PMBriefStatus;
+  input_tokens: number;
+  output_tokens: number;
+  total_cost: number;
+  created_at: string;
+  updated_at: string;
+}
+
+// ─── Head of Growth types ─────────────────────────────────────────────────────
+
+export type GrowthDecision = 'go' | 'no-go';
+export type GrowthReviewPhase = 'post-pm' | 'post-mkt';
+
+export interface GrowthReview {
+  id: string;
+  company_id: string;
+  pm_brief_id?: string;
+  report_id?: string;
+  phase: GrowthReviewPhase;
+  // Review sections
+  growth_readiness?: string;
+  aarrr_health_check?: string;
+  roi_assessment?: string;
+  decision: GrowthDecision;
+  pm_priority_work?: string;    // populated when decision = 'no-go'
+  growth_hypothesis?: string;   // populated when decision = 'go'
+  next_phase_recommendation?: string;
+  // Metadata
   input_tokens: number;
   output_tokens: number;
   total_cost: number;
@@ -275,8 +312,10 @@ export interface PMProposal {
   currency: string;
   proposal_content?: string;
   status: PMProposalStatus;
+  send_count: number;
   sent_at?: string;
   accepted_at?: string;
+  rejected_at?: string;
   created_at: string;
   updated_at: string;
 }

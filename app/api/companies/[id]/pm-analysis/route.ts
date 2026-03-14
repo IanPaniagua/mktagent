@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { PMInputData, CompanyRecord } from '@/lib/types';
-import { runPMAnalysis } from '@/lib/pm-agent';
+import { runPMAnalysis, PMScrapedData } from '@/lib/pm-agent';
 
 export const maxDuration = 300;
 
@@ -44,6 +44,7 @@ export async function POST(
 
         const briefSections: Record<string, string> = {};
         let usageData = { inputTokens: 0, outputTokens: 0, totalCost: 0 };
+        let scrapedCache: PMScrapedData = { landingPage: '', github: '' };
 
         await runPMAnalysis(
           company as CompanyRecord,
@@ -58,15 +59,20 @@ export async function POST(
           (usage) => {
             usageData = usage;
             send({ type: 'cost', usage });
+          },
+          (scraped) => {
+            scrapedCache = scraped;
           }
         );
 
-        // Save PM brief to Supabase
+        // Save PM brief + scraped cache to Supabase
         const { data: savedBrief, error: saveError } = await supabase
           .from('pm_briefs')
           .insert({
             company_id: companyId,
             ...briefSections,
+            scraped_landing_page: scrapedCache.landingPage.slice(0, 20000),
+            scraped_github: scrapedCache.github.slice(0, 10000),
             status: 'complete',
             input_tokens: usageData.inputTokens,
             output_tokens: usageData.outputTokens,

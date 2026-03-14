@@ -65,7 +65,7 @@ export default function AnalyzingPage() {
   ) => {
     try {
       // Check for existing company_id (re-analysis flow)
-      const existingId = sessionStorage.getItem('mktagent_company_id');
+      const existingId = sessionStorage.getItem('growthOS_company_id') || sessionStorage.getItem('mktagent_company_id');
       let companyId = existingId;
 
       if (!companyId) {
@@ -111,8 +111,9 @@ export default function AnalyzingPage() {
 
   const startAnalysis = async (data: CompanyData) => {
     try {
-      const existingCompanyId = sessionStorage.getItem('mktagent_company_id');
-      const pmBriefId = sessionStorage.getItem('mktagent_pm_brief_id');
+      // Support both old and new session key names
+      const existingCompanyId = sessionStorage.getItem('growthOS_company_id') || sessionStorage.getItem('mktagent_company_id');
+      const pmBriefId = sessionStorage.getItem('growthOS_pm_brief_id') || sessionStorage.getItem('mktagent_pm_brief_id');
 
       const response = await fetch('/api/analyze', {
         method: 'POST',
@@ -231,13 +232,24 @@ export default function AnalyzingPage() {
           >
             {companyData && (
               <div style={{ marginBottom: '8px' }}>
+                <div style={{
+                  display: 'inline-flex', alignItems: 'center', gap: '8px',
+                  background: 'rgba(200,255,0,0.06)', border: '1px solid rgba(200,255,0,0.18)',
+                  borderRadius: '100px', padding: '4px 12px', marginBottom: '16px',
+                }}>
+                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--acid)', display: 'inline-block', animation: 'blink 1.5s ease-in-out infinite' }} />
+                  <span style={{ fontFamily: 'var(--font-dm-mono), monospace', fontSize: '10px', color: 'var(--acid)', letterSpacing: '0.1em' }}>
+                    PHASE 3 · MARKETING AGENT
+                  </span>
+                </div>
+                <div>
                 <span style={{
                   fontFamily: 'var(--font-dm-mono), monospace',
                   fontSize: '12px',
                   color: 'var(--acid)',
                   letterSpacing: '0.1em',
                 }}>
-                  ANALYZING
+                  BUILDING FUNNELS FOR
                 </span>
                 {' '}
                 <span style={{
@@ -254,6 +266,7 @@ export default function AnalyzingPage() {
                 }}>
                   _
                 </span>
+                </div>
               </div>
             )}
             <p style={{

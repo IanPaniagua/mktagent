@@ -53,7 +53,7 @@ export async function POST(
 
         let fullText = '';
         const response = await anthropic.messages.create({
-          model: 'claude-opus-4-5',
+          model: 'claude-sonnet-4-6',
           max_tokens: 4000,
           stream: true,
           messages: [{ role: 'user', content: prompt }],
@@ -66,14 +66,17 @@ export async function POST(
           }
         }
 
-        // Parse pricing
-        const pricingMatch = fullText.match(/PRICING_SUGGESTION:\s*(\d+)-(\d+)/i);
-        const execMatch = fullText.match(/EXECUTION_BUDGET_ESTIMATE:\s*(\d+)-(\d+)/i);
+        // Parse pricing — handles €1,500-€3,000 / 1.500-3.000 / 1500–3000 etc.
+        function parseRange(text: string, label: string): [number | null, number | null] {
+          const m = text.match(new RegExp(`${label}:\\s*[€$£]?\\s*([\\d,\\.]+)\\s*[-–]\\s*[€$£]?\\s*([\\d,\\.]+)`, 'i'));
+          if (!m) return [null, null];
+          const clean = (s: string) => parseInt(s.replace(/[,\.]/g, '').replace(/\D/g, ''), 10);
+          return [clean(m[1]), clean(m[2])];
+        }
 
-        const priceMin = pricingMatch ? parseInt(pricingMatch[1]) : null;
-        const priceMax = pricingMatch ? parseInt(pricingMatch[2]) : null;
-        const execMin = execMatch ? parseInt(execMatch[1]) : null;
-        const execMax = execMatch ? parseInt(execMatch[2]) : null;
+        const [priceMin, priceMax] = parseRange(fullText, 'PRICING_SUGGESTION');
+        const [execMin, execMax] = parseRange(fullText, 'EXECUTION_BUDGET_ESTIMATE');
+        console.log('[generate-plan] pricing parsed:', { priceMin, priceMax, execMin, execMax });
         const suggestedPrice = priceMin && priceMax ? Math.round((priceMin + priceMax) / 2) : null;
 
         // Save plan to DB

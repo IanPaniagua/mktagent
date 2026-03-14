@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { CompanyData } from '@/lib/types';
-import { runAnalysis } from '@/lib/agent';
+import { runAnalysis, PreScrapedData } from '@/lib/agent';
 import { buildPMBriefSummary } from '@/lib/pm-prompts';
 
 export const maxDuration = 300;
@@ -18,8 +18,9 @@ export async function POST(request: NextRequest) {
       try {
         const body = await request.json() as CompanyData & { companyId?: string; pmBriefId?: string };
 
-        // Fetch PM brief context if available
         let pmBriefContext: string | undefined;
+        let preScraped: PreScrapedData | undefined;
+
         const companyId = body.companyId;
         const pmBriefId = body.pmBriefId;
 
@@ -42,6 +43,15 @@ export async function POST(request: NextRequest) {
 
             if (brief) {
               pmBriefContext = buildPMBriefSummary(brief);
+
+              // Pass cached scrape data to avoid re-scraping
+              if (brief.scraped_landing_page || brief.scraped_github) {
+                preScraped = {
+                  landingPage: brief.scraped_landing_page ?? '',
+                  github: brief.scraped_github ?? '',
+                  scrapedAt: brief.created_at,
+                };
+              }
             }
           } catch (e) {
             console.warn('[Analyze] Failed to fetch PM brief:', e);
@@ -77,7 +87,8 @@ export async function POST(request: NextRequest) {
           (usage) => {
             send({ type: 'cost', usage });
           },
-          pmBriefContext
+          pmBriefContext,
+          preScraped
         );
 
         send({ type: 'complete' });

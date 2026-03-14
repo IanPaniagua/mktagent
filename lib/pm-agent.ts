@@ -7,12 +7,18 @@ import { calculateCost, StepCallback, ResultCallback, CostCallback } from './age
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
+export interface PMScrapedData {
+  landingPage: string;
+  github: string;
+}
+
 export async function runPMAnalysis(
   company: CompanyRecord,
   pmInput: PMInputData,
   onStep: StepCallback,
   onResult: ResultCallback,
-  onCost?: CostCallback
+  onCost?: CostCallback,
+  onScraped?: (data: PMScrapedData) => void
 ): Promise<void> {
   // Step 1: Scrape landing page
   onStep(1, 'active', 'Scraping landing page...');
@@ -37,6 +43,11 @@ export async function runPMAnalysis(
     }
   }
   onStep(2, 'done', company.github_url ? 'GitHub repository read' : 'No GitHub repo provided');
+
+  // Expose scraped data so the API route can cache it in Supabase
+  if (onScraped) {
+    onScraped({ landingPage: landingPageContent, github: githubContent });
+  }
 
   // Step 3: Parse uploaded documents
   onStep(3, 'active', 'Processing documents (PRD, research, roadmap)...');
@@ -63,10 +74,10 @@ export async function runPMAnalysis(
   await new Promise(r => setTimeout(r, 400));
   onStep(4, 'done', 'Positioning data compiled');
 
-  // Step 5: Diagnosing PMF signals
-  onStep(5, 'active', 'Diagnosing PMF signals...');
+  // Step 5: Diagnosing PMF + AARRR signals
+  onStep(5, 'active', 'Diagnosing PMF & AARRR signals...');
   await new Promise(r => setTimeout(r, 400));
-  onStep(5, 'done', 'PMF diagnosis prepared');
+  onStep(5, 'done', 'PMF & AARRR diagnosis prepared');
 
   // Step 6: Building product brief via Claude
   onStep(6, 'active', 'Building Product Intelligence Brief with PMCORE...');
@@ -90,8 +101,8 @@ export async function runPMAnalysis(
   });
 
   const stream = await client.messages.stream({
-    model: 'claude-sonnet-4-5',
-    max_tokens: 8000,
+    model: 'claude-sonnet-4-6',
+    max_tokens: 10000,
     system: buildPMSystemPrompt(),
     messages: [{ role: 'user', content: prompt }],
   });
@@ -128,14 +139,18 @@ function parseBriefSections(content: string): Record<string, string> {
 
   const sectionPatterns: Array<{ key: string; pattern: RegExp }> = [
     { key: 'product_clarity',        pattern: /##\s*1\.\s*PRODUCT CLARITY([\s\S]*?)(?=##\s*2\.|$)/i },
-    { key: 'icp',                    pattern: /##\s*2\.\s*ICP[^#]*([\s\S]*?)(?=##\s*3\.|$)/i },
-    { key: 'jobs_to_be_done',        pattern: /##\s*3\.\s*JOBS-TO-BE-DONE([\s\S]*?)(?=##\s*4\.|$)/i },
-    { key: 'pmf_assessment',         pattern: /##\s*4\.\s*PMF ASSESSMENT([\s\S]*?)(?=##\s*5\.|$)/i },
-    { key: 'positioning',            pattern: /##\s*5\.\s*POSITIONING([\s\S]*?)(?=##\s*6\.|$)/i },
-    { key: 'value_prop_gaps',        pattern: /##\s*6\.\s*VALUE PROPOSITION GAPS([\s\S]*?)(?=##\s*7\.|$)/i },
-    { key: 'pre_marketing_needs',    pattern: /##\s*7\.\s*PRE-MARKETING NEEDS([\s\S]*?)(?=##\s*8\.|$)/i },
-    { key: 'quick_marketing_wins',   pattern: /##\s*8\.\s*QUICK MARKETING WINS([\s\S]*?)(?=##\s*9\.|$)/i },
-    { key: 'recommended_pm_actions', pattern: /##\s*9\.\s*RECOMMENDED PM ACTIONS([\s\S]*?)$/i },
+    { key: 'vision',                 pattern: /##\s*2\.\s*VISION[^#]*([\s\S]*?)(?=##\s*3\.|$)/i },
+    { key: 'okrs',                   pattern: /##\s*3\.\s*OKRs?[^#]*([\s\S]*?)(?=##\s*4\.|$)/i },
+    { key: 'icp',                    pattern: /##\s*4\.\s*ICP[^#]*([\s\S]*?)(?=##\s*5\.|$)/i },
+    { key: 'jobs_to_be_done',        pattern: /##\s*5\.\s*JOBS-TO-BE-DONE([\s\S]*?)(?=##\s*6\.|$)/i },
+    { key: 'pmf_assessment',         pattern: /##\s*6\.\s*PMF ASSESSMENT([\s\S]*?)(?=##\s*7\.|$)/i },
+    { key: 'aarrr_assessment',       pattern: /##\s*7\.\s*AARRR[^#]*([\s\S]*?)(?=##\s*8\.|$)/i },
+    { key: 'early_validation',       pattern: /##\s*8\.\s*EARLY VALIDATION[^#]*([\s\S]*?)(?=##\s*9\.|$)/i },
+    { key: 'positioning',            pattern: /##\s*9\.\s*POSITIONING([\s\S]*?)(?=##\s*10\.|$)/i },
+    { key: 'value_prop_gaps',        pattern: /##\s*10\.\s*VALUE PROPOSITION GAPS([\s\S]*?)(?=##\s*11\.|$)/i },
+    { key: 'pre_marketing_needs',    pattern: /##\s*11\.\s*PRE-MARKETING NEEDS([\s\S]*?)(?=##\s*12\.|$)/i },
+    { key: 'client_deliverables',    pattern: /##\s*12\.\s*CLIENT DELIVERABLES([\s\S]*?)(?=##\s*13\.|$)/i },
+    { key: 'recommended_pm_actions', pattern: /##\s*13\.\s*RECOMMENDED PM ACTIONS([\s\S]*?)$/i },
   ];
 
   for (const { key, pattern } of sectionPatterns) {

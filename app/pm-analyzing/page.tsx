@@ -12,10 +12,10 @@ const INITIAL_STEPS: AnalysisStepType[] = [
   { id: 1, name: 'Scraping landing page',            description: 'Extracting product content and messaging...', status: 'pending' },
   { id: 2, name: 'Reading GitHub repository',        description: 'Analyzing codebase maturity and README...', status: 'pending' },
   { id: 3, name: 'Processing product documents',     description: 'Parsing PRDs, research, and roadmap...', status: 'pending' },
-  { id: 4, name: 'Analyzing product positioning',   description: 'ICP, competitive alternatives, differentiation...', status: 'pending' },
-  { id: 5, name: 'Diagnosing PMF signals',           description: 'Retention signals, growth stage, readiness...', status: 'pending' },
-  { id: 6, name: 'Building Product Brief',           description: 'PMCORE generating intelligence report...', status: 'pending' },
-  { id: 7, name: 'Structuring brief sections',       description: 'Parsing and organizing output...', status: 'pending' },
+  { id: 4, name: 'Analyzing product positioning',   description: 'Vision, ICP, JTBD, competitive alternatives...', status: 'pending' },
+  { id: 5, name: 'Diagnosing PMF & AARRR signals',  description: 'PMF stage, pirate metrics health, validation plan...', status: 'pending' },
+  { id: 6, name: 'Building Product Intelligence Brief', description: 'PMCORE generating 13-section report...', status: 'pending' },
+  { id: 7, name: 'Structuring brief sections',       description: 'Parsing Vision, OKRs, AARRR, Deliverables...', status: 'pending' },
 ];
 
 function PMAnalyzingContent() {
@@ -157,7 +157,7 @@ function PMAnalyzingContent() {
                 color: 'var(--signal-blue)',
                 letterSpacing: '0.1em',
               }}>
-                PHASE 1 · PMCORE
+                PHASE 1 · PMCORE — PRODUCT INTELLIGENCE
               </span>
               {' '}
               <span style={{

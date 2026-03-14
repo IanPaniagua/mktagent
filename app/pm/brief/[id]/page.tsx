@@ -21,14 +21,18 @@ interface BriefWithCompany extends PMBriefRecord {
 
 const SECTIONS: { key: keyof PMBriefRecord; label: string; icon: string; color: string }[] = [
   { key: 'product_clarity',        label: 'Product Clarity',         icon: '🎯', color: 'var(--acid)' },
-  { key: 'icp',                    label: 'ICP',                      icon: '👤', color: 'var(--signal-blue)' },
-  { key: 'jobs_to_be_done',        label: 'Jobs-to-be-Done',          icon: '💼', color: 'var(--acid)' },
-  { key: 'pmf_assessment',         label: 'PMF Assessment',           icon: '📊', color: '#ff9500' },
-  { key: 'positioning',            label: 'Positioning',              icon: '⚔️', color: 'var(--signal-blue)' },
-  { key: 'value_prop_gaps',        label: 'Value Prop Gaps',          icon: '📝', color: '#ff9500' },
-  { key: 'pre_marketing_needs',    label: 'Pre-Marketing Needs',      icon: '🔧', color: 'var(--signal-red)' },
-  { key: 'quick_marketing_wins',   label: 'Quick Wins',               icon: '⚡', color: 'var(--acid)' },
-  { key: 'recommended_pm_actions', label: 'Recommended PM Actions',   icon: '🗺️', color: 'var(--signal-blue)' },
+  { key: 'vision',                 label: 'Vision & North Star',     icon: '🔭', color: 'var(--signal-blue)' },
+  { key: 'okrs',                   label: 'OKRs',                    icon: '🎯', color: 'var(--signal-blue)' },
+  { key: 'icp',                    label: 'ICP',                     icon: '👤', color: 'var(--signal-blue)' },
+  { key: 'jobs_to_be_done',        label: 'Jobs-to-be-Done',         icon: '💼', color: 'var(--acid)' },
+  { key: 'pmf_assessment',         label: 'PMF Assessment',          icon: '📊', color: '#ff9500' },
+  { key: 'aarrr_assessment',       label: 'AARRR Assessment',        icon: '🏴‍☠️', color: '#ff9500' },
+  { key: 'early_validation',       label: 'Early Validation Plan',   icon: '🧪', color: 'var(--signal-blue)' },
+  { key: 'positioning',            label: 'Positioning',             icon: '⚔️', color: 'var(--signal-blue)' },
+  { key: 'value_prop_gaps',        label: 'Value Prop Gaps',         icon: '📝', color: '#ff9500' },
+  { key: 'pre_marketing_needs',    label: 'Pre-Marketing Needs',     icon: '🔧', color: 'var(--signal-red)' },
+  { key: 'client_deliverables',    label: 'Client Deliverables',     icon: '📦', color: 'var(--acid)' },
+  { key: 'recommended_pm_actions', label: 'Recommended PM Actions',  icon: '🗺️', color: 'var(--signal-blue)' },
 ];
 
 function fmtDate(iso: string) {
@@ -41,6 +45,15 @@ export default function PMBriefPage({ params }: { params: Promise<{ id: string }
   const [brief, setBrief] = useState<BriefWithCompany | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeSection, setActiveSection] = useState<string>(SECTIONS[0].key);
+
+  // Clarification state
+  const [clarifyOpen, setClarifyOpen] = useState(false);
+  const [clarifyText, setClarifyText] = useState('');
+  const [clarifyLoading, setClarifyLoading] = useState(false);
+  const [clarifyStreamText, setClarifyStreamText] = useState('');
+  const [clarifyDone, setClarifyDone] = useState(false);
+  const [clarifyUpdatedKeys, setClarifyUpdatedKeys] = useState<string[]>([]);
+  const [clarifyError, setClarifyError] = useState('');
 
   // Directions state
   const [directionsLoading, setDirectionsLoading] = useState(false);
@@ -72,6 +85,61 @@ export default function PMBriefPage({ params }: { params: Promise<{ id: string }
       })
       .catch(() => {/* no proposal */});
   }, [id]);
+
+  async function sendClarification() {
+    if (!clarifyText.trim() || !brief) return;
+    setClarifyLoading(true);
+    setClarifyStreamText('');
+    setClarifyDone(false);
+    setClarifyUpdatedKeys([]);
+    setClarifyError('');
+
+    try {
+      const res = await fetch(`/api/pm-briefs/${id}/clarify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clarification: clarifyText }),
+      });
+
+      const reader = res.body!.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const parts = buffer.split('\n\n');
+        buffer = parts.pop() ?? '';
+
+        for (const part of parts) {
+          const line = part.replace(/^data: /, '').trim();
+          if (!line) continue;
+          try {
+            const msg = JSON.parse(line);
+            if (msg.type === 'token') {
+              setClarifyStreamText(prev => prev + msg.text);
+            }
+            if (msg.type === 'complete') {
+              // Merge updated sections into local brief state
+              setBrief(prev => prev ? { ...prev, ...msg.updatedSections } : prev);
+              setClarifyUpdatedKeys(msg.updatedKeys ?? []);
+              setClarifyDone(true);
+              setClarifyLoading(false);
+              setClarifyText('');
+            }
+            if (msg.type === 'error') {
+              setClarifyError(msg.message);
+              setClarifyLoading(false);
+            }
+          } catch { /* skip */ }
+        }
+      }
+    } catch {
+      setClarifyError('Connection failed. Please try again.');
+      setClarifyLoading(false);
+    }
+  }
 
   function generateDirections() {
     setDirectionsLoading(true);
@@ -239,17 +307,17 @@ export default function PMBriefPage({ params }: { params: Promise<{ id: string }
                 </p>
               </div>
 
-              {/* Run marketing button */}
+              {/* Step 2: Growth Review */}
               <button
                 onClick={() => {
-                  sessionStorage.setItem('mktagent_pm_brief_id', brief.id);
-                  sessionStorage.setItem('mktagent_company_id', brief.company_id);
-                  router.push(`/analyzing`);
+                  sessionStorage.setItem('growthOS_pm_brief_id', brief.id);
+                  sessionStorage.setItem('growthOS_company_id', brief.company_id);
+                  router.push(`/growth-reviewing`);
                 }}
                 style={{
                   padding: '12px 24px',
-                  background: 'var(--acid)',
-                  color: 'var(--ink)',
+                  background: '#ff9500',
+                  color: '#fff',
                   border: 'none',
                   borderRadius: '8px',
                   fontFamily: 'var(--font-geist), sans-serif',
@@ -265,14 +333,14 @@ export default function PMBriefPage({ params }: { params: Promise<{ id: string }
                 }}
                 onMouseEnter={e => {
                   (e.currentTarget as HTMLElement).style.transform = 'scale(1.03)';
-                  (e.currentTarget as HTMLElement).style.boxShadow = '0 0 30px rgba(200,255,0,0.3)';
+                  (e.currentTarget as HTMLElement).style.boxShadow = '0 0 30px rgba(255,149,0,0.35)';
                 }}
                 onMouseLeave={e => {
                   (e.currentTarget as HTMLElement).style.transform = 'scale(1)';
                   (e.currentTarget as HTMLElement).style.boxShadow = 'none';
                 }}
               >
-                Run Marketing Analysis →
+                Step 2 — Run Growth Review →
               </button>
             </div>
 
@@ -430,6 +498,199 @@ export default function PMBriefPage({ params }: { params: Promise<{ id: string }
               )}
             </motion.div>
           </div>
+
+          {/* ── CLARIFY TO PMCORE ── */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.35 }}
+            style={{ marginTop: '24px' }}
+          >
+            {/* Header row */}
+            <button
+              onClick={() => { setClarifyOpen(o => !o); setClarifyDone(false); setClarifyStreamText(''); setClarifyError(''); }}
+              style={{
+                width: '100%', padding: '16px 20px',
+                background: clarifyOpen ? 'rgba(0,140,255,0.06)' : 'var(--ink-soft)',
+                border: '1px solid var(--ink-border)',
+                borderRadius: clarifyOpen ? '12px 12px 0 0' : '12px',
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                cursor: 'pointer', textAlign: 'left', transition: 'background 0.2s',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <span style={{ fontSize: '16px' }}>💬</span>
+                <div>
+                  <p style={{ fontFamily: 'var(--font-dm-serif), serif', fontSize: '17px', color: 'var(--chrome)', fontWeight: 400, margin: 0, marginBottom: '2px' }}>
+                    Clarify something to PMCORE
+                  </p>
+                  <p style={{ fontFamily: 'var(--font-geist), sans-serif', fontSize: '12px', color: 'var(--chrome-dim)', margin: 0 }}>
+                    Forgot to mention analytics tools, a key feature, or a pricing detail? Tell PMCORE — it will update only the affected sections.
+                  </p>
+                </div>
+              </div>
+              <span style={{ color: 'var(--chrome-dim)', fontSize: '14px', flexShrink: 0, marginLeft: '12px', transition: 'transform 0.2s', transform: clarifyOpen ? 'rotate(180deg)' : 'rotate(0)' }}>▾</span>
+            </button>
+
+            <AnimatePresence>
+              {clarifyOpen && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.2 }}
+                  style={{ overflow: 'hidden' }}
+                >
+                  <div style={{
+                    padding: '20px',
+                    background: 'var(--ink-soft)',
+                    border: '1px solid var(--ink-border)',
+                    borderTop: 'none',
+                    borderRadius: '0 0 12px 12px',
+                  }}>
+                    {/* Input */}
+                    {!clarifyDone && (
+                      <>
+                        <textarea
+                          value={clarifyText}
+                          onChange={e => setClarifyText(e.target.value)}
+                          disabled={clarifyLoading}
+                          placeholder={'e.g. "We actually have Google Analytics and Mixpanel set up — I forgot to mention it. Also our average contract is €400/month, not €100."'}
+                          rows={3}
+                          style={{
+                            width: '100%', padding: '12px 14px',
+                            background: 'var(--ink-muted)', border: '1px solid var(--ink-border)',
+                            borderRadius: '8px', color: 'var(--chrome)',
+                            fontFamily: 'var(--font-geist), sans-serif', fontSize: '13px',
+                            lineHeight: 1.6, resize: 'vertical', outline: 'none',
+                            opacity: clarifyLoading ? 0.5 : 1,
+                            boxSizing: 'border-box',
+                          }}
+                          onFocus={e => (e.currentTarget.style.borderColor = 'var(--signal-blue)')}
+                          onBlur={e => (e.currentTarget.style.borderColor = 'var(--ink-border)')}
+                        />
+
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '10px', flexWrap: 'wrap', gap: '10px' }}>
+                          <p style={{ fontFamily: 'var(--font-dm-mono), monospace', fontSize: '11px', color: 'var(--chrome-dim)', margin: 0 }}>
+                            PMCORE will identify which sections to update and rewrite only those.
+                          </p>
+                          <button
+                            onClick={sendClarification}
+                            disabled={clarifyLoading || !clarifyText.trim()}
+                            style={{
+                              padding: '10px 20px',
+                              background: clarifyLoading || !clarifyText.trim() ? 'var(--ink-muted)' : 'var(--signal-blue)',
+                              color: clarifyLoading || !clarifyText.trim() ? 'var(--chrome-dim)' : '#fff',
+                              border: 'none', borderRadius: '7px',
+                              fontFamily: 'var(--font-geist), sans-serif', fontSize: '13px',
+                              fontWeight: 700, cursor: clarifyLoading || !clarifyText.trim() ? 'not-allowed' : 'pointer',
+                              display: 'inline-flex', alignItems: 'center', gap: '8px',
+                              transition: 'background 0.2s',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {clarifyLoading ? (
+                              <>
+                                <span style={{ display: 'inline-block', width: '10px', height: '10px', borderRadius: '50%', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', animation: 'spin 0.7s linear infinite' }} />
+                                Updating brief...
+                              </>
+                            ) : 'Update Brief →'}
+                          </button>
+                        </div>
+
+                        {/* Live stream preview */}
+                        {clarifyLoading && clarifyStreamText && (
+                          <div style={{
+                            marginTop: '14px', padding: '12px 14px',
+                            background: 'rgba(0,140,255,0.04)', border: '1px solid rgba(0,140,255,0.15)',
+                            borderRadius: '8px', maxHeight: '160px', overflowY: 'auto',
+                          }}>
+                            <p style={{ fontFamily: 'var(--font-dm-mono), monospace', fontSize: '10px', color: 'var(--signal-blue)', letterSpacing: '0.08em', marginBottom: '8px' }}>
+                              PMCORE IS UPDATING...
+                            </p>
+                            <p style={{ fontFamily: 'var(--font-geist), sans-serif', fontSize: '12px', color: 'var(--chrome-muted)', lineHeight: 1.6, margin: 0, whiteSpace: 'pre-wrap' }}>
+                              {clarifyStreamText}
+                              <span style={{ animation: 'blink 1s step-end infinite' }}>▌</span>
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Error */}
+                        {clarifyError && (
+                          <p style={{ fontFamily: 'var(--font-geist), sans-serif', fontSize: '13px', color: 'var(--signal-red)', marginTop: '10px' }}>
+                            {clarifyError}
+                          </p>
+                        )}
+                      </>
+                    )}
+
+                    {/* Done state */}
+                    {clarifyDone && (
+                      <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}>
+                        <div style={{
+                          display: 'flex', alignItems: 'center', gap: '10px',
+                          padding: '12px 16px', background: 'rgba(200,255,0,0.06)',
+                          border: '1px solid rgba(200,255,0,0.2)', borderRadius: '8px',
+                          marginBottom: '12px',
+                        }}>
+                          <span style={{ color: 'var(--acid)', fontSize: '16px' }}>✓</span>
+                          <p style={{ fontFamily: 'var(--font-geist), sans-serif', fontSize: '13px', color: 'var(--chrome)', margin: 0 }}>
+                            Brief updated. {clarifyUpdatedKeys.length} section{clarifyUpdatedKeys.length !== 1 ? 's' : ''} changed.
+                          </p>
+                        </div>
+                        {clarifyUpdatedKeys.length > 0 && (
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '14px' }}>
+                            {clarifyUpdatedKeys.map(k => {
+                              const sec = SECTIONS.find(s => s.key === k);
+                              return sec ? (
+                                <button
+                                  key={k}
+                                  onClick={() => { setActiveSection(k); setClarifyOpen(false); }}
+                                  style={{
+                                    padding: '4px 12px',
+                                    background: 'rgba(0,140,255,0.08)', border: '1px solid rgba(0,140,255,0.2)',
+                                    borderRadius: '100px', cursor: 'pointer',
+                                    fontFamily: 'var(--font-dm-mono), monospace', fontSize: '11px',
+                                    color: 'var(--signal-blue)', letterSpacing: '0.04em',
+                                  }}
+                                >
+                                  {sec.icon} {sec.label}
+                                </button>
+                              ) : null;
+                            })}
+                          </div>
+                        )}
+                        <div style={{ display: 'flex', gap: '10px' }}>
+                          <button
+                            onClick={() => { setClarifyDone(false); setClarifyStreamText(''); }}
+                            style={{
+                              padding: '8px 16px', background: 'transparent',
+                              border: '1px solid var(--ink-border)', borderRadius: '7px',
+                              fontFamily: 'var(--font-dm-mono), monospace', fontSize: '11px',
+                              color: 'var(--chrome-muted)', cursor: 'pointer',
+                            }}
+                          >
+                            Add another clarification
+                          </button>
+                          <button
+                            onClick={() => setClarifyOpen(false)}
+                            style={{
+                              padding: '8px 16px', background: 'transparent',
+                              border: '1px solid var(--ink-border)', borderRadius: '7px',
+                              fontFamily: 'var(--font-dm-mono), monospace', fontSize: '11px',
+                              color: 'var(--chrome-muted)', cursor: 'pointer',
+                            }}
+                          >
+                            Close
+                          </button>
+                        </div>
+                      </motion.div>
+                    )}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </motion.div>
 
           {/* ── WHAT TO FIX FIRST? Directions section ── */}
           <motion.div
@@ -637,7 +898,7 @@ export default function PMBriefPage({ params }: { params: Promise<{ id: string }
             </AnimatePresence>
           </motion.div>
 
-          {/* Skip to marketing (secondary action) */}
+          {/* Next step hint */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -645,40 +906,18 @@ export default function PMBriefPage({ params }: { params: Promise<{ id: string }
             style={{
               marginTop: '16px',
               padding: '14px 18px',
-              background: 'rgba(255,153,0,0.04)',
-              border: '1px solid rgba(255,153,0,0.15)',
+              background: 'rgba(0,140,255,0.04)',
+              border: '1px solid rgba(0,140,255,0.12)',
               borderRadius: '8px',
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '16px',
-              flexWrap: 'wrap',
+              gap: '12px',
             }}
           >
-            <p style={{ fontFamily: 'var(--font-geist), sans-serif', fontSize: '13px', color: 'rgba(255,153,0,0.8)', margin: 0 }}>
-              ⚠️ Client wants to skip PM work? They can go straight to marketing — but results will be limited.
+            <span style={{ fontSize: '16px' }}>💡</span>
+            <p style={{ fontFamily: 'var(--font-geist), sans-serif', fontSize: '13px', color: 'var(--chrome-muted)', margin: 0, lineHeight: 1.6 }}>
+              Once the PM proposal is agreed with the client, click <strong style={{ color: 'var(--chrome)' }}>Step 2 — Run Growth Review</strong> above. The Head of Growth will assess readiness and decide if you can move to Marketing.
             </p>
-            <button
-              onClick={() => {
-                sessionStorage.setItem('mktagent_pm_brief_id', brief.id);
-                sessionStorage.setItem('mktagent_company_id', brief.company_id);
-                router.push('/analyzing');
-              }}
-              style={{
-                padding: '8px 16px',
-                background: 'transparent',
-                border: '1px solid rgba(255,153,0,0.3)',
-                borderRadius: '6px',
-                fontFamily: 'var(--font-dm-mono), monospace',
-                fontSize: '11px',
-                color: 'rgba(255,153,0,0.8)',
-                cursor: 'pointer',
-                whiteSpace: 'nowrap',
-                letterSpacing: '0.04em',
-              }}
-            >
-              Skip PM → Go to Marketing
-            </button>
           </motion.div>
         </div>
       </main>

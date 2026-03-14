@@ -4,7 +4,7 @@ import { scrapeUrl, guessCompetitorUrl } from './scraper';
 import { parseDocument, base64ToBuffer } from './parser';
 import { buildSystemPrompt, buildAnalysisPrompt } from './prompts';
 
-// claude-sonnet-4-5 pricing (USD per million tokens)
+// claude-sonnet-4-6 pricing (USD per million tokens)
 const PRICING = { input: 3.0, output: 15.0 };
 
 export function calculateCost(inputTokens: number, outputTokens: number): UsageData {
@@ -20,35 +20,64 @@ export type StepCallback = (step: number, status: 'active' | 'done', message: st
 export type ResultCallback = (section: string, content: string) => void;
 export type CostCallback = (usage: UsageData) => void;
 
+export interface PreScrapedData {
+  landingPage?: string;
+  github?: string;
+  scrapedAt?: string; // ISO date — used to decide if re-scraping is needed
+}
+
+const SCRAPE_CACHE_TTL_DAYS = 7;
+
+function isCacheStale(scrapedAt?: string): boolean {
+  if (!scrapedAt) return true;
+  const age = Date.now() - new Date(scrapedAt).getTime();
+  return age > SCRAPE_CACHE_TTL_DAYS * 24 * 60 * 60 * 1000;
+}
+
 export async function runAnalysis(
   companyData: CompanyData,
   onStep: StepCallback,
   onResult: ResultCallback,
   onCost?: CostCallback,
-  pmBriefContext?: string
+  pmBriefContext?: string,
+  preScraped?: PreScrapedData
 ): Promise<void> {
-  // Step 1: Scrape landing page
-  onStep(1, 'active', 'Scraping landing page...');
-  let landingPageData: ScrapedData = { url: companyData.landingPageUrl, title: '', content: '', success: false };
-  try {
-    landingPageData = await scrapeUrl(companyData.landingPageUrl);
-  } catch (e) {
-    console.warn('Landing page scrape failed:', e);
-  }
-  onStep(1, 'done', 'Landing page scraped');
+  const useCache = preScraped && !isCacheStale(preScraped.scrapedAt);
 
-  // Step 2: Scrape GitHub repo
-  onStep(2, 'active', 'Reading GitHub repository...');
+  // Step 1: Landing page — reuse PM scrape if fresh
+  onStep(1, 'active', useCache ? 'Loading cached landing page data...' : 'Scraping landing page...');
+  let landingPageData: ScrapedData = { url: companyData.landingPageUrl, title: '', content: '', success: false };
+
+  if (useCache && preScraped?.landingPage) {
+    landingPageData = { url: companyData.landingPageUrl, title: '', content: preScraped.landingPage, success: true };
+    onStep(1, 'done', 'Landing page loaded from PM cache');
+  } else {
+    try {
+      landingPageData = await scrapeUrl(companyData.landingPageUrl);
+    } catch (e) {
+      console.warn('Landing page scrape failed:', e);
+    }
+    onStep(1, 'done', 'Landing page scraped');
+  }
+
+  // Step 2: GitHub — reuse PM scrape if fresh
+  onStep(2, 'active', useCache ? 'Loading cached GitHub data...' : 'Reading GitHub repository...');
   let githubContent = '';
-  if (companyData.githubUrl) {
+
+  if (useCache && preScraped?.github) {
+    githubContent = preScraped.github;
+    onStep(2, 'done', 'GitHub data loaded from PM cache');
+  } else if (companyData.githubUrl) {
     try {
       const ghData = await scrapeUrl(companyData.githubUrl);
       githubContent = ghData.content;
     } catch (e) {
       console.warn('GitHub scrape failed:', e);
     }
+    onStep(2, 'done', companyData.githubUrl ? 'GitHub repository read' : 'No GitHub repo provided');
+  } else {
+    onStep(2, 'done', 'No GitHub repo provided');
   }
-  onStep(2, 'done', companyData.githubUrl ? 'GitHub repository read' : 'No GitHub repo provided');
 
   // Step 3: Parse uploaded documents
   onStep(3, 'active', 'Processing uploaded documents...');
@@ -70,7 +99,7 @@ export async function runAnalysis(
   }
   onStep(3, 'done', companyData.documents?.length ? `${companyData.documents.length} document(s) processed` : 'No documents provided');
 
-  // Step 4: Scrape competitors
+  // Step 4: Scrape competitors (MKT-specific — always runs)
   onStep(4, 'active', 'Running competitor research...');
   const competitorContents: Array<{ name: string; content: string }> = [];
   const competitorsToScrape = companyData.competitors.slice(0, 8);
@@ -89,14 +118,13 @@ export async function runAnalysis(
 
   // Step 5: User research analysis
   onStep(5, 'active', 'Conducting user research analysis...');
-  // This happens in the Claude call — signal it's being prepared
   await new Promise(r => setTimeout(r, 500));
   onStep(5, 'done', 'User research data compiled');
 
-  // Step 6: Company stage analysis
-  onStep(6, 'active', 'Analyzing company stage & positioning...');
+  // Step 6: AARRR funnel mapping
+  onStep(6, 'active', 'Mapping AARRR funnel strategy...');
   await new Promise(r => setTimeout(r, 500));
-  onStep(6, 'done', 'Company positioning analyzed');
+  onStep(6, 'done', 'AARRR funnel strategy mapped');
 
   // Step 7: Build marketing strategy via Claude
   onStep(7, 'active', 'Building marketing strategy with Claude AI...');
@@ -124,8 +152,8 @@ export async function runAnalysis(
   onStep(8, 'active', 'Generating final report...');
 
   const stream = await client.messages.stream({
-    model: 'claude-sonnet-4-5',
-    max_tokens: 8000,
+    model: 'claude-sonnet-4-6',
+    max_tokens: 10000,
     system: buildSystemPrompt(),
     messages: [{ role: 'user', content: prompt }],
   });
@@ -137,7 +165,6 @@ export async function runAnalysis(
     }
   }
 
-  // Capture token usage from the final message
   const finalMessage = await stream.finalMessage();
   if (onCost) {
     const usage = calculateCost(
@@ -150,7 +177,6 @@ export async function runAnalysis(
   onStep(7, 'done', 'Marketing strategy complete');
   onStep(8, 'done', 'Report generated');
 
-  // Parse sections from the full content
   const sections = parseReportSections(fullContent);
   for (const [section, content] of Object.entries(sections)) {
     onResult(section, content);
@@ -161,12 +187,14 @@ function parseReportSections(content: string): Record<string, string> {
   const sections: Record<string, string> = {};
 
   const sectionPatterns: Array<{ key: string; pattern: RegExp }> = [
-    { key: 'executiveSummary', pattern: /##\s*1\.\s*EXECUTIVE SUMMARY([\s\S]*?)(?=##\s*2\.|$)/i },
-    { key: 'companyAnalysis', pattern: /##\s*2\.\s*COMPANY ANALYSIS([\s\S]*?)(?=##\s*3\.|$)/i },
-    { key: 'userResearch', pattern: /##\s*3\.\s*USER RESEARCH([\s\S]*?)(?=##\s*4\.|$)/i },
-    { key: 'competitorAnalysis', pattern: /##\s*4\.\s*COMPETITOR ANALYSIS([\s\S]*?)(?=##\s*5\.|$)/i },
-    { key: 'marketingStrategy', pattern: /##\s*5\.\s*MARKETING STRATEGY([\s\S]*?)(?=##\s*6\.|$)/i },
-    { key: 'budgetAllocation', pattern: /##\s*6\.\s*BUDGET ALLOCATION([\s\S]*?)$/i },
+    { key: 'executiveSummary',     pattern: /##\s*1\.\s*EXECUTIVE SUMMARY([\s\S]*?)(?=##\s*2\.|$)/i },
+    { key: 'companyAnalysis',      pattern: /##\s*2\.\s*COMPANY ANALYSIS([\s\S]*?)(?=##\s*3\.|$)/i },
+    { key: 'userResearch',         pattern: /##\s*3\.\s*USER RESEARCH([\s\S]*?)(?=##\s*4\.|$)/i },
+    { key: 'competitorAnalysis',   pattern: /##\s*4\.\s*COMPETITOR ANALYSIS([\s\S]*?)(?=##\s*5\.|$)/i },
+    { key: 'aarrr_funnel_strategy',pattern: /##\s*5\.\s*AARRR FUNNEL STRATEGY([\s\S]*?)(?=##\s*6\.|$)/i },
+    { key: 'marketingStrategy',    pattern: /##\s*6\.\s*CHANNEL STRATEGY[^#]*([\s\S]*?)(?=##\s*7\.|$)/i },
+    { key: 'roiProjections',       pattern: /##\s*7\.\s*ROI PROJECTIONS([\s\S]*?)(?=##\s*8\.|$)/i },
+    { key: 'budgetAllocation',     pattern: /##\s*8\.\s*BUDGET ALLOCATION([\s\S]*?)$/i },
   ];
 
   for (const { key, pattern } of sectionPatterns) {
@@ -176,7 +204,6 @@ function parseReportSections(content: string): Record<string, string> {
     }
   }
 
-  // If no sections parsed, put everything in executiveSummary
   if (Object.keys(sections).length === 0) {
     sections['executiveSummary'] = content;
   }

@@ -70,6 +70,14 @@ export default function PMProposalPage({ params }: { params: Promise<{ id: strin
   const [statusUpdating, setStatusUpdating] = useState(false);
   const [priceSaved, setPriceSaved] = useState(false);
 
+  // Proposal clarification
+  const [clarifyOpen, setClarifyOpen] = useState(false);
+  const [clarifyText, setClarifyText] = useState('');
+  const [clarifyLoading, setClarifyLoading] = useState(false);
+  const [clarifyStreamText, setClarifyStreamText] = useState('');
+  const [clarifyDone, setClarifyDone] = useState(false);
+  const [clarifyError, setClarifyError] = useState('');
+
   useEffect(() => {
     fetch(`/api/pm-proposals/${proposalId}`)
       .then(r => r.json())
@@ -200,6 +208,55 @@ export default function PMProposalPage({ params }: { params: Promise<{ id: strin
     setStatusUpdating(false);
   }
 
+  async function sendProposalClarification() {
+    if (!clarifyText.trim()) return;
+    setClarifyLoading(true);
+    setClarifyStreamText('');
+    setClarifyDone(false);
+    setClarifyError('');
+
+    try {
+      const res = await fetch(`/api/pm-proposals/${proposalId}/clarify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clarification: clarifyText }),
+      });
+
+      const reader = res.body!.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const parts = buffer.split('\n\n');
+        buffer = parts.pop() ?? '';
+        for (const part of parts) {
+          const line = part.replace(/^data: /, '').trim();
+          if (!line) continue;
+          try {
+            const msg = JSON.parse(line);
+            if (msg.type === 'token') setClarifyStreamText(prev => prev + msg.text);
+            if (msg.type === 'complete') {
+              setProposalText(msg.proposalContent);
+              setClarifyDone(true);
+              setClarifyLoading(false);
+              setClarifyText('');
+            }
+            if (msg.type === 'error') {
+              setClarifyError(msg.message);
+              setClarifyLoading(false);
+            }
+          } catch { /* skip */ }
+        }
+      }
+    } catch {
+      setClarifyError('Connection failed. Please try again.');
+      setClarifyLoading(false);
+    }
+  }
+
   function goToMarketing() {
     if (!proposal) return;
     sessionStorage.setItem('mktagent_pm_brief_id', proposal.pm_brief_id);
@@ -281,51 +338,18 @@ export default function PMProposalPage({ params }: { params: Promise<{ id: strin
                 </div>
               </div>
 
-              {/* Status actions */}
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'flex-start' }}>
-                {proposal.status === 'draft' && proposalDone && (
-                  <button
-                    onClick={() => updateStatus('sent')}
-                    disabled={statusUpdating}
-                    style={{
-                      padding: '10px 20px', background: 'rgba(0,140,255,0.12)', color: 'var(--signal-blue)',
-                      border: '1px solid rgba(0,140,255,0.3)', borderRadius: '8px',
-                      fontFamily: 'var(--font-geist), sans-serif', fontSize: '13px', fontWeight: 600,
-                      cursor: 'pointer', transition: 'background 0.2s',
-                    }}
-                  >
-                    Mark as Sent
-                  </button>
-                )}
-                {proposal.status === 'sent' && (
-                  <>
-                    <button
-                      onClick={() => updateStatus('accepted')}
-                      disabled={statusUpdating}
-                      style={{
-                        padding: '10px 20px', background: 'rgba(200,255,0,0.1)', color: 'var(--acid)',
-                        border: '1px solid rgba(200,255,0,0.3)', borderRadius: '8px',
-                        fontFamily: 'var(--font-geist), sans-serif', fontSize: '13px', fontWeight: 600,
-                        cursor: 'pointer',
-                      }}
-                    >
-                      Accepted
-                    </button>
-                    <button
-                      onClick={() => updateStatus('rejected')}
-                      disabled={statusUpdating}
-                      style={{
-                        padding: '10px 20px', background: 'rgba(255,51,85,0.08)', color: 'var(--signal-red)',
-                        border: '1px solid rgba(255,51,85,0.2)', borderRadius: '8px',
-                        fontFamily: 'var(--font-geist), sans-serif', fontSize: '13px', fontWeight: 600,
-                        cursor: 'pointer',
-                      }}
-                    >
-                      Rejected
-                    </button>
-                  </>
-                )}
-              </div>
+              {/* Send count badge */}
+              {proposal.send_count > 0 && (
+                <div style={{
+                  display: 'inline-flex', alignItems: 'center', gap: '6px',
+                  background: 'rgba(120,120,130,0.1)', border: '1px solid rgba(120,120,130,0.2)',
+                  borderRadius: '100px', padding: '4px 12px',
+                }}>
+                  <span style={{ fontFamily: 'var(--font-dm-mono), monospace', fontSize: '11px', color: 'var(--chrome-dim)', letterSpacing: '0.06em' }}>
+                    SENT {proposal.send_count}×
+                  </span>
+                </div>
+              )}
             </div>
           </motion.div>
 
@@ -635,7 +659,137 @@ export default function PMProposalPage({ params }: { params: Promise<{ id: strin
                   </motion.div>
                 )}
 
-                {/* Proposal actions */}
+                {/* Clarify panel */}
+                {proposalDone && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.15 }}
+                    style={{ marginTop: '20px' }}
+                  >
+                    <button
+                      onClick={() => { setClarifyOpen(o => !o); setClarifyDone(false); setClarifyStreamText(''); setClarifyError(''); }}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: '8px',
+                        background: clarifyOpen ? 'rgba(0,140,255,0.08)' : 'transparent',
+                        border: `1px solid ${clarifyOpen ? 'rgba(0,140,255,0.3)' : 'var(--ink-border)'}`,
+                        borderRadius: '8px', padding: '10px 16px',
+                        fontFamily: 'var(--font-dm-mono), monospace', fontSize: '12px',
+                        color: clarifyOpen ? 'var(--signal-blue)' : 'var(--chrome-dim)',
+                        cursor: 'pointer', transition: 'all 0.15s', letterSpacing: '0.05em',
+                      }}
+                    >
+                      <span>💬</span>
+                      <span>ASK PMCORE TO UPDATE PROPOSAL</span>
+                      <span style={{ marginLeft: 'auto', opacity: 0.5 }}>{clarifyOpen ? '▲' : '▼'}</span>
+                    </button>
+
+                    <AnimatePresence>
+                      {clarifyOpen && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          exit={{ opacity: 0, height: 0 }}
+                          style={{ overflow: 'hidden' }}
+                        >
+                          <div style={{
+                            marginTop: '8px',
+                            padding: '20px',
+                            background: 'var(--ink-soft)',
+                            border: '1px solid rgba(0,140,255,0.2)',
+                            borderRadius: '10px',
+                          }}>
+                            {!clarifyDone && (
+                              <>
+                                <textarea
+                                  value={clarifyText}
+                                  onChange={e => setClarifyText(e.target.value)}
+                                  placeholder='e.g. "Change the price to €2,500/month" or "Make the tone more direct in the assessment section"'
+                                  disabled={clarifyLoading}
+                                  rows={3}
+                                  style={{
+                                    width: '100%', boxSizing: 'border-box',
+                                    background: 'var(--ink-muted)',
+                                    border: '1px solid var(--ink-border)',
+                                    borderRadius: '8px', padding: '12px 14px',
+                                    fontFamily: 'var(--font-geist), sans-serif',
+                                    fontSize: '14px', color: 'var(--chrome)',
+                                    resize: 'vertical', outline: 'none',
+                                    opacity: clarifyLoading ? 0.5 : 1,
+                                  }}
+                                />
+                                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '10px' }}>
+                                  <button
+                                    onClick={sendProposalClarification}
+                                    disabled={clarifyLoading || !clarifyText.trim()}
+                                    style={{
+                                      padding: '10px 22px',
+                                      background: clarifyLoading || !clarifyText.trim() ? 'var(--ink-muted)' : 'var(--signal-blue)',
+                                      color: clarifyLoading || !clarifyText.trim() ? 'var(--chrome-dim)' : '#fff',
+                                      border: 'none', borderRadius: '7px',
+                                      fontFamily: 'var(--font-geist), sans-serif',
+                                      fontSize: '13px', fontWeight: 700,
+                                      cursor: clarifyLoading || !clarifyText.trim() ? 'not-allowed' : 'pointer',
+                                      transition: 'all 0.15s',
+                                    }}
+                                  >
+                                    {clarifyLoading ? 'Updating...' : 'Update Proposal →'}
+                                  </button>
+                                </div>
+                              </>
+                            )}
+
+                            {clarifyLoading && clarifyStreamText && (
+                              <div style={{
+                                marginTop: '14px',
+                                padding: '14px',
+                                background: 'rgba(0,140,255,0.04)',
+                                border: '1px solid rgba(0,140,255,0.15)',
+                                borderRadius: '8px',
+                                fontFamily: 'var(--font-geist), sans-serif',
+                                fontSize: '13px', color: 'var(--chrome-muted)',
+                                lineHeight: 1.7, maxHeight: '200px', overflowY: 'auto',
+                              }}>
+                                {clarifyStreamText}
+                                <span style={{ display: 'inline-block', width: '2px', height: '14px', background: 'var(--signal-blue)', marginLeft: '2px', animation: 'blink 1s step-end infinite', verticalAlign: 'text-bottom' }} />
+                              </div>
+                            )}
+
+                            {clarifyDone && (
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
+                                <span style={{
+                                  fontFamily: 'var(--font-dm-mono), monospace', fontSize: '12px',
+                                  color: 'var(--acid)', letterSpacing: '0.05em',
+                                }}>
+                                  ✓ PROPOSAL UPDATED
+                                </span>
+                                <button
+                                  onClick={() => { setClarifyDone(false); setClarifyStreamText(''); setClarifyOpen(false); }}
+                                  style={{
+                                    padding: '6px 14px', background: 'transparent',
+                                    border: '1px solid var(--ink-border)', borderRadius: '6px',
+                                    fontFamily: 'var(--font-dm-mono), monospace', fontSize: '11px',
+                                    color: 'var(--chrome-dim)', cursor: 'pointer',
+                                  }}
+                                >
+                                  Close
+                                </button>
+                              </div>
+                            )}
+
+                            {clarifyError && (
+                              <p style={{ fontFamily: 'var(--font-dm-mono), monospace', fontSize: '12px', color: 'var(--signal-red)', marginTop: '10px' }}>
+                                {clarifyError}
+                              </p>
+                            )}
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </motion.div>
+                )}
+
+                {/* Proposal actions — status workflow */}
                 {proposalDone && (
                   <motion.div
                     initial={{ opacity: 0, y: 12 }}
@@ -643,95 +797,122 @@ export default function PMProposalPage({ params }: { params: Promise<{ id: strin
                     transition={{ delay: 0.2 }}
                     style={{
                       marginTop: '24px',
-                      display: 'grid',
-                      gridTemplateColumns: '1fr 1fr',
-                      gap: '16px',
+                      padding: '20px 24px',
+                      background: 'var(--ink-soft)',
+                      border: '1px solid var(--ink-border)',
+                      borderRadius: '12px',
                     }}
                   >
-                    {/* Regenerate */}
-                    <button
-                      onClick={generateProposal}
-                      style={{
-                        padding: '14px 20px',
-                        background: 'transparent',
-                        border: '1px solid var(--ink-border)',
-                        borderRadius: '8px',
-                        fontFamily: 'var(--font-geist), sans-serif',
-                        fontSize: '14px',
-                        color: 'var(--chrome-muted)',
-                        cursor: 'pointer',
-                        transition: 'border-color 0.2s, color 0.2s',
-                      }}
-                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--chrome-dim)'; (e.currentTarget as HTMLElement).style.color = 'var(--chrome)'; }}
-                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--ink-border)'; (e.currentTarget as HTMLElement).style.color = 'var(--chrome-muted)'; }}
-                    >
-                      Regenerate Proposal
-                    </button>
+                    {/* Draft or Rejected → send it */}
+                    {(proposal.status === 'draft' || proposal.status === 'rejected') && (
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
+                        <div>
+                          <div style={{ fontFamily: 'var(--font-dm-mono), monospace', fontSize: '10px', color: 'var(--chrome-dim)', letterSpacing: '0.07em', marginBottom: '4px' }}>
+                            {proposal.status === 'rejected' ? 'PROPOSAL REVISED — READY TO RESEND' : 'READY TO SEND'}
+                          </div>
+                          <p style={{ fontFamily: 'var(--font-geist), sans-serif', fontSize: '13px', color: 'var(--chrome-muted)', margin: 0 }}>
+                            {proposal.status === 'rejected'
+                              ? 'Make any final edits above, then mark as sent again.'
+                              : 'When you\'ve sent this to the client, mark it here to track the status.'}
+                          </p>
+                        </div>
+                        <div style={{ display: 'flex', gap: '10px', flexShrink: 0 }}>
+                          <button
+                            onClick={generateProposal}
+                            style={{
+                              padding: '11px 18px', background: 'transparent',
+                              border: '1px solid var(--ink-border)', borderRadius: '8px',
+                              fontFamily: 'var(--font-geist), sans-serif', fontSize: '13px',
+                              color: 'var(--chrome-muted)', cursor: 'pointer',
+                            }}
+                          >
+                            Regenerate
+                          </button>
+                          <button
+                            onClick={() => updateStatus('sent')}
+                            disabled={statusUpdating}
+                            style={{
+                              padding: '11px 22px', background: 'var(--signal-blue)', color: '#fff',
+                              border: 'none', borderRadius: '8px',
+                              fontFamily: 'var(--font-geist), sans-serif', fontSize: '13px', fontWeight: 700,
+                              cursor: statusUpdating ? 'not-allowed' : 'pointer',
+                              opacity: statusUpdating ? 0.6 : 1,
+                            }}
+                          >
+                            {statusUpdating ? 'Saving...' : 'Mark as Sent →'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
 
-                    {/* Proceed to marketing */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                      <button
-                        onClick={goToMarketing}
-                        style={{
-                          padding: '14px 20px',
-                          background: 'var(--acid)',
-                          color: 'var(--ink)',
-                          border: 'none',
-                          borderRadius: '8px',
-                          fontFamily: 'var(--font-geist), sans-serif',
-                          fontSize: '14px',
-                          fontWeight: 700,
-                          cursor: 'pointer',
-                          transition: 'transform 0.2s, box-shadow 0.2s',
-                        }}
-                        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = 'scale(1.02)'; (e.currentTarget as HTMLElement).style.boxShadow = '0 0 30px rgba(200,255,0,0.25)'; }}
-                        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = 'scale(1)'; (e.currentTarget as HTMLElement).style.boxShadow = 'none'; }}
-                      >
-                        Client Accepted → Launch Marketing Analysis
-                      </button>
-                      <p style={{ fontFamily: 'var(--font-dm-mono), monospace', fontSize: '10px', color: 'var(--chrome-dim)', textAlign: 'center', margin: 0 }}>
-                        PM Brief context will be injected into the marketing analysis automatically.
-                      </p>
-                    </div>
+                    {/* Sent → waiting for response */}
+                    {proposal.status === 'sent' && (
+                      <div>
+                        <div style={{ fontFamily: 'var(--font-dm-mono), monospace', fontSize: '10px', color: 'var(--chrome-dim)', letterSpacing: '0.07em', marginBottom: '12px' }}>
+                          WAITING FOR CLIENT RESPONSE
+                        </div>
+                        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                          <button
+                            onClick={() => updateStatus('accepted')}
+                            disabled={statusUpdating}
+                            style={{
+                              padding: '12px 24px', background: 'rgba(200,255,0,0.1)', color: 'var(--acid)',
+                              border: '1px solid rgba(200,255,0,0.3)', borderRadius: '8px',
+                              fontFamily: 'var(--font-geist), sans-serif', fontSize: '14px', fontWeight: 700,
+                              cursor: statusUpdating ? 'not-allowed' : 'pointer', flex: 1,
+                            }}
+                          >
+                            ✓ Client Accepted
+                          </button>
+                          <button
+                            onClick={() => updateStatus('rejected')}
+                            disabled={statusUpdating}
+                            style={{
+                              padding: '12px 24px', background: 'rgba(255,51,85,0.06)', color: 'var(--signal-red)',
+                              border: '1px solid rgba(255,51,85,0.2)', borderRadius: '8px',
+                              fontFamily: 'var(--font-geist), sans-serif', fontSize: '14px', fontWeight: 600,
+                              cursor: statusUpdating ? 'not-allowed' : 'pointer', flex: 1,
+                            }}
+                          >
+                            ✗ Client Rejected
+                          </button>
+                        </div>
+                        <p style={{ fontFamily: 'var(--font-dm-mono), monospace', fontSize: '10px', color: 'var(--chrome-dim)', margin: '10px 0 0', letterSpacing: '0.04em' }}>
+                          If rejected, use the clarify panel above to revise, then resend.
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Accepted → proceed to growth review */}
+                    {proposal.status === 'accepted' && (
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
+                        <div>
+                          <div style={{ fontFamily: 'var(--font-dm-mono), monospace', fontSize: '10px', color: 'var(--acid)', letterSpacing: '0.07em', marginBottom: '4px' }}>
+                            ✓ PROPOSAL ACCEPTED
+                          </div>
+                          <p style={{ fontFamily: 'var(--font-geist), sans-serif', fontSize: '13px', color: 'var(--chrome-muted)', margin: 0 }}>
+                            {proposal.send_count > 1 ? `Accepted after ${proposal.send_count} sends. ` : 'Accepted on first send. '}
+                            Ready to move to the Growth Review.
+                          </p>
+                        </div>
+                        <button
+                          onClick={goToMarketing}
+                          style={{
+                            padding: '12px 24px', background: 'var(--acid)', color: 'var(--ink)',
+                            border: 'none', borderRadius: '8px',
+                            fontFamily: 'var(--font-geist), sans-serif', fontSize: '14px', fontWeight: 700,
+                            cursor: 'pointer', flexShrink: 0,
+                          }}
+                          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.boxShadow = '0 0 24px rgba(200,255,0,0.3)'; }}
+                          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.boxShadow = 'none'; }}
+                        >
+                          Step 2 — Growth Review →
+                        </button>
+                      </div>
+                    )}
                   </motion.div>
                 )}
 
-                {/* Skip warning */}
-                {proposalDone && (
-                  <div style={{
-                    marginTop: '16px',
-                    padding: '14px 18px',
-                    background: 'rgba(255,153,0,0.05)',
-                    border: '1px solid rgba(255,153,0,0.2)',
-                    borderRadius: '8px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: '16px',
-                    flexWrap: 'wrap',
-                  }}>
-                    <p style={{ fontFamily: 'var(--font-geist), sans-serif', fontSize: '13px', color: 'rgba(255,153,0,0.8)', margin: 0 }}>
-                      ⚠️ Client wants to skip PM work and go straight to marketing? They can, but results will be limited.
-                    </p>
-                    <button
-                      onClick={goToMarketing}
-                      style={{
-                        padding: '8px 16px',
-                        background: 'transparent',
-                        border: '1px solid rgba(255,153,0,0.3)',
-                        borderRadius: '6px',
-                        fontFamily: 'var(--font-dm-mono), monospace',
-                        fontSize: '11px',
-                        color: 'rgba(255,153,0,0.8)',
-                        cursor: 'pointer',
-                        whiteSpace: 'nowrap',
-                        letterSpacing: '0.04em',
-                      }}
-                    >
-                      Skip PM → Go to Marketing
-                    </button>
-                  </div>
-                )}
               </motion.div>
             )}
           </AnimatePresence>
